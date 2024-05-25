@@ -1,0 +1,26 @@
+{
+    "id": "285B6F5E",
+    "path": "~/Library/CloudStorage/GoogleDrive-nishiumi.g@rs1905.net/マイドライブ/Nishiumi/DROPBOXバックアップ/curr biol submission/Source dataset/analysis/sourcecode.R",
+    "project_path": "sourcecode.R",
+    "type": "r_source",
+    "hash": "2922634676",
+    "contents": "",
+    "dirty": false,
+    "created": 1684800965810.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "cursorPosition": "3823,0",
+        "scrollLine": "3813",
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "76|40|85|0|\n87|35|109|0|\n111|32|132|0|\n134|42|157|0|\n159|31|170|0|\n172|35|244|0|\n246|55|264|0|\n266|135|434|0|\n436|135|519|0|\n629|83|736|0|\n738|83|794|0|\n796|69|809|0|\n811|36|865|0|\n867|30|894|0|\n896|27|910|0|\n912|29|926|0|\n956|38|969|0|\n986|38|999|0|\n1001|37|1011|0|\n1015|34|1054|0|\n",
+    "lastKnownWriteTime": 1716539554,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1716539554183,
+    "read_only": false,
+    "read_only_alternatives": []
+}

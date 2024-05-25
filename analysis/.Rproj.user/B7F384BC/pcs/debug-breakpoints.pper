@@ -1,0 +1,21 @@
+{
+    "debugBreakpointsState": {
+        "breakpoints": [
+            {
+                "editor_line_number": 3126,
+                "editor_state": 1,
+                "function_name": "toplevel",
+                "function_steps": "",
+                "id": 5,
+                "is_package_breakpoint": false,
+                "is_pending_debug_completion": false,
+                "line_number": 3126,
+                "needs_updated_steps": false,
+                "package_name": "",
+                "path": "~/Dropbox/コウモリ/捕食行動関係（西海さん）/松田君/解析プログラム/コウモリ解析;4.R",
+                "state": 1,
+                "type": 1
+            }
+        ]
+    }
+}
