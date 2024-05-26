@@ -3,31 +3,28 @@ Journal: Current Biology
 Authors: Nozomi Nishiumi, Emyo Fujioka, Shizuko Hiryu
 
 - - -
-
-
+## Aim:
+This repository was created to clarify the entire process of generating the results.  
+After running the source code in RStudio, it will automatically refer to the source raw data and generate figures and supplemental data shown in the results. In addition, the details of the individual experiment situations, such as flight trajectories and pulse directions in each session, are visualized as image files and 3D interactive files. 
 　　 
 ## Composition:
-`"analysis" folder` contains the R project file and R script file that generate all figures, supplemental data in the paper.
+- `"analysis" folder` contains the R project file and R script file that generate all figures, supplemental data in the paper.
 ![image1](media/image1.png)
 
----
-
-`"experiment" folder` contains raw data of bat–moth positions and pulse directions, as well as images and 3D-interactive HTML files describing the situation of each session.
+- `"experiment" folder` contains raw data of bat–moth positions and pulse directions, as well as images and 3D-interactive HTML files describing the situation of each session.
 ![image2](media/image2.png)
-_Location of images describing each session_
+_Location of images describing each session_  
+   
+  <img src="media/image3.gif" width="300">　 <img src="media/image4.gif" width="300">  
+  _3D-interactive image of (Left) bat-moth flight trajectories, (Right) target and pulse directions from the bat's viewpoint._
 
-<img src="media/image3.gif" width="300">　<img src="media/image4.gif" width="300">
+  
+   
+- `"results" folder` contains figures and supplemental data used in the paper.
+![image5](media/image5.png)  
 
-_3D-interactive image of (Left) bat-moth flight trajectories, (Right) target and pulse directions from the bat's viewpoint._
-
----
-
-`"results" folder` contains figures and supplemental data used in the paper.
-![image5](media/image5.png)
-
----
-
-`"basic_info" folder` contains the ID, sex, body weight of bats, and experiment dates for each session.
+   
+- `"basic_info" folder` contains the ID, sex, body weight of bats, and experiment dates for each session.  
 
 　　 
 ## Note:
