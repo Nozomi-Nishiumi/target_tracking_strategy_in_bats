@@ -44,23 +44,23 @@ Here is the procedure to run the R script.
 
 　　 
 ## Description of sourcecode.R:
-**[Lines 5–23](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/05b35ea9473366e3008273ce1d35385df2948216/analysis/sourcecode.R#L5)**: 
+**[Lines 5–23](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/main/analysis/sourcecode.R#L5)**: 
 List of packages
 
-**[Lines 39–3773](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/05b35ea9473366e3008273ce1d35385df2948216/analysis/sourcecode.R#L39)**: 
+**[Lines 39–3773](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/main/analysis/sourcecode.R#L39)**: 
 Definitions of functions
 
-**[Lines 3808–3811](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/05b35ea9473366e3008273ce1d35385df2948216/analysis/sourcecode.R#L3808)**: 
+**[Lines 3808–3811](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/main/analysis/sourcecode.R#L3808)**: 
 There is a controller for generating the results.
 - If `generate_results` is T, the program regenerates all results in the "results" directory.
 - If `draw_EachSession` is T, the program regenerates images describing the situation of each session, which will be saved in each session folder in the “experiments” folder.
 - If `draw_RGLfigures` is T, the program generates 3D interactive HTML images and saves them in each session folder in the “experiments” folder. These 3D interactive HTML images should be opened by your web browser that supports JavaScript, and then you can control the viewpoint of the image by dragging your mouse.
 - If `generate_results_delay` is T, the program regenerates all results related to Figs. 2F and S3C. Because this process consists of many iterations, it can take some time.
 
-**[Lines 3813–3825](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/05b35ea9473366e3008273ce1d35385df2948216/analysis/sourcecode.R#L3813)**:
+**[Lines 3813–3825](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/main/analysis/sourcecode.R#L3813)**:
 Basic parameters
 
-**[Lines 3828 and later](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/05b35ea9473366e3008273ce1d35385df2948216/analysis/sourcecode.R#L3828)**:
+**[Lines 3828 and later](https://github.com/Nozomi-Nishiumi/target_tracking_strategy_in_bats/blob/main/analysis/sourcecode.R#L3828)**:
 Main processing section
 
 
