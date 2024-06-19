@@ -1,6 +1,7 @@
 # Bats integrate multiple echolocation and flight tactics to track prey  
+Authors: Nozomi Nishiumi, Emyo Fujioka, Shizuko Hiryu   
 Journal: Current Biology  
-Authors: Nozomi Nishiumi, Emyo Fujioka, Shizuko Hiryu
+DOI: https://doi.org/10.1016/j.cub.2024.05.062
 
 - - -
 ## Aim:
@@ -29,7 +30,7 @@ _Location of images describing each session_
 　　 
 ## Note:
 The R script file “sourcecode.R” generates figures and supplemental data to the “results” folder, and and additional data for each session to "experiments" folder by referring to raw data in the “experiments” and “basic_info” folders. Thus, it is necessary to maintain the file and folder structure of this dataset.
-The R project file “analysis.Rproj” defines the initial file path to correctly refer to those folders. Thus, you should first activate “analysis.Rproj” and then open “sourcecode.R”. This R project file works based on the free IDE “RStudio”. 
+The R project file “analysis.Rproj” defines the initial file path to correctly refer to those folders. Therefore, you should first activate “analysis.Rproj” then open “sourcecode.R” there. See the next section for the details.
 
 　　 
 ## Procedure to run the R script:
