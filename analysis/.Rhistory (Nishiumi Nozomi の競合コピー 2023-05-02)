@@ -1,0 +1,512 @@
+a=36/143*x
+b=69/143*x
+ax=1/2*a
+ay=r3/2*a
+bx=1/2*b
+by=r3/2*b
+r3/2*base
+r3/2*base-ax
+r3/2*base-bx
+ax
+r3/2*base-a
+r3/2*base-b
+ax
+bx
+1/2*base-ay
+1/2*base-by
+1/2*base
+z1
+z2
+path="/Volumes/GoogleDrive-109908342966361347756/共有ドライブ/画像解析/20200808/06/target_data/68"
+list=list.files(path, pattern="DLT_TGT3D.csv", recursive = T, full.names = T)
+list
+read.csv(list)
+pathlist
+path="/Volumes/GoogleDrive-109908342966361347756/共有ドライブ/画像解析/20200808/06/target_data/68"
+pathlist=list.files(path, pattern="DLT_TGT3D.csv", recursive = T, full.names = T)
+pathlist
+regexpr("/", pathlist)
+targetPackages <- c("rgl","stringr")
+newPackages <- targetPackages[!(targetPackages %in% installed.packages()[,"Package"])]
+if(length(newPackages)) install.packages(newPackages, repos = "http://cran.us.r-project.org")
+for(package in targetPackages) library(package, character.only = T)
+setwd(pathlist)
+pathlist
+regexpr("/DLT_TGT3D.csv", pathlist)
+stringr::str_subset(pathlist,14,length(pathlist))
+stringr::str_sub(pathlist,14,length(pathlist))
+length(pathlist)
+length(pathlist[1])
+pathlist[1]
+stringr::str_sub(pathlist,1,14)
+regexpr("/DLT_TGT3D.csv", pathlist)
+match=regexpr("/DLT_TGT3D.csv", pathlist)[1]
+stringr::str_sub(pathlist,1,match)
+setwd(dir)
+dir
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+setwd(.../)
+setwd(../)
+setwd("../")
+getwd()
+setwd("..../")
+getwd()
+setwd("../../")
+getwd()
+setwd(dir)
+setwd("../../")
+getwd()
+parentdir=getwd()
+length(parentdir)
+parentdir
+str_length(parentdir)
+str_sub(pathlist1,str_length(parentdir))
+str_sub(pathlist[1],str_length(parentdir))
+dir
+str_sub(pathlist[1],str_length(parentdir)-match)
+pathlist[1]
+str_sub(pathlist[1],str_length(parentdir),match)
+path="/Volumes/GoogleDrive-109908342966361347756/共有ドライブ/画像解析/20200808/06"
+pathlist=list.files(path, pattern="DLT_TGT3D.csv", recursive = T, full.names = T)
+match=regexpr("/DLT_TGT3D.csv", pathlist)[1]
+dir=stringr::str_sub(pathlist,1,match)
+pathlist
+data=read.csv(pathlist)
+if(rgl.cur()!=0){
+rgl.close()
+}
+range_x=c(-2,2)
+range_y=c(-2,2)
+range_z=c(0,2)
+plot3d(data$X1_x,data$X1_y,data$X1_z,type="n",
+xlim=range_x,ylim=range_y,zlim=range_z)
+par3d(windowRect = c(0, 0, 700, 700))
+aspect3d(6,3,2)
+tgtnum=(ncol(data)-1)/3
+for(i in 1:tgtnum)
+{
+}
+for(i in 1:tgtnum){
+lines3d(data[,i+1],data[,i+2],data[,i+3],col= rgb(1, 0.5, 0.5, alpha=0.6))
+points3d(data[,i+1],data[,i+2],data[,i+3],col= rgb(1, 0.5, 0.5, alpha=0.6))
+}
+view3d(theta=0, phi=-90, fov=60, zoom=0.8, scale=par3d("scale"), interactive=TRUE)
+legend3d("topright", legend = c(head3,'Bat','Moth'), pch = 16, col = c(rgb(1,1,1),rgb(1, 0.5, 0.5),rgb(0.5, 0.5, 1)), cex=1, inset=c(0.02))
+path="/Volumes/GoogleDrive-109908342966361347756/共有ドライブ/画像解析/20200808/06"
+pathlist=list.files(path, pattern="DLT_TGT3D.csv", recursive = T, full.names = T)
+match=regexpr("/DLT_TGT3D.csv", pathlist)[1]
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+setwd("../../../")
+parentdir=getwd()
+name=str_sub(pathlist[1],str_length(parentdir),match)
+data=read.csv(pathlist)
+if(rgl.cur()!=0){
+rgl.close()
+}
+range_x=c(-2,2)
+range_y=c(-2,2)
+range_z=c(0,2)
+plot3d(data$X1_x,data$X1_y,data$X1_z,type="n",
+xlim=range_x,ylim=range_y,zlim=range_z)
+par3d(windowRect = c(0, 0, 700, 700))
+aspect3d(6,3,2)
+tgtnum=(ncol(data)-1)/3
+for(i in 1:tgtnum){
+lines3d(data[,i+1],data[,i+2],data[,i+3],col= rgb(1, 0.5, 0.5, alpha=0.6))
+points3d(data[,i+1],data[,i+2],data[,i+3],col= rgb(1, 0.5, 0.5, alpha=0.6))
+}
+view3d(theta=0, phi=-90, fov=60, zoom=0.8, scale=par3d("scale"), interactive=TRUE)
+data
+path="/Volumes/GoogleDrive-109908342966361347756/共有ドライブ/画像解析/20200808/06"
+pathlist=list.files(path, pattern="DLT_TGT3D.csv", recursive = T, full.names = T)
+match=regexpr("/DLT_TGT3D.csv", pathlist)[1]
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+setwd("../../../")
+parentdir=getwd()
+name=str_sub(pathlist[1],str_length(parentdir),match)
+data=read.csv(pathlist)
+if(rgl.cur()!=0){
+rgl.close()
+}
+range_x=c(-2,2)
+range_y=c(-2,2)
+range_z=c(0,2)
+plot3d(data$X1_x,data$X1_y,data$X1_z,type="n",
+xlim=range_x,ylim=range_y,zlim=range_z)
+par3d(windowRect = c(0, 0, 700, 700))
+aspect3d(6,3,2)
+tgtnum=(ncol(data)-1)/3
+for(i in 1:tgtnum){
+lines3d(data[,i+1],data[,i+2],data[,i+3],col= rgb(1, 0.5, 0.5, alpha=0.6))
+points3d(data[,i+1],data[,i+2],data[,i+3],col= rgb(1, 0.5, 0.5, alpha=0.6))
+}
+view3d(theta=0, phi=-90, fov=60, zoom=0.8, scale=par3d("scale"), interactive=TRUE)
+pathlist
+data
+if(rgl.cur()!=0){
+rgl.close()
+}
+range_x=c(-2,2)
+range_y=c(-2,2)
+range_z=c(0,2)
+plot3d(data[1,2],data[1,3],data[1,4],type="n",
+xlim=range_x,ylim=range_y,zlim=range_z)
+par3d(windowRect = c(0, 0, 700, 700))
+range_x=c(-2,2)
+range_y=c(-2,2)
+range_z=c(0,2)
+plot3d(data[1,2],data[1,3],data[1,4],type="n",
+xlim=range_x,ylim=range_y,zlim=range_z)
+par3d(windowRect = c(0, 0, 700, 700))
+aspect3d(6,3,2)
+tgtnum=(ncol(data)-1)/3
+for(i in 1:tgtnum){
+lines3d(data[,i+1],data[,i+2],data[,i+3],col= hsv(30*i/360, 1, 1, alpha=0.6))
+points3d(data[,i+1],data[,i+2],data[,i+3],col= hsv(30*i/360, 1, 1, alpha=0.6))
+}
+view3d(theta=0, phi=-90, fov=60, zoom=0.8, scale=par3d("scale"), interactive=TRUE)
+data
+i=1
+data[,i+1]
+data
+range_x=c(-2,2)
+range_y=c(-2,2)
+range_z=c(-2,2)
+plot3d(data[1,2],data[1,3],data[1,4],type="n",
+xlim=range_x,ylim=range_y,zlim=range_z)
+par3d(windowRect = c(0, 0, 700, 700))
+aspect3d(6,3,2)
+tgtnum=(ncol(data)-1)/3
+for(i in 1:tgtnum){
+lines3d(data[,i+1],data[,i+2],data[,i+3],col= hsv(30*i/360, 1, 1, alpha=0.6))
+points3d(data[,i+1],data[,i+2],data[,i+3],col= hsv(30*i/360, 1, 1, alpha=0.6))
+}
+view3d(theta=0, phi=-90, fov=60, zoom=0.8, scale=par3d("scale"), interactive=TRUE)
+if(rgl.cur()!=0){
+rgl.close()
+}
+range_x=c(-2,2)
+range_y=c(-2,2)
+range_z=c(-2,2)
+plot3d(data[1,2],data[1,3],data[1,4],type="n",
+xlim=range_x,ylim=range_y,zlim=range_z)
+par3d(windowRect = c(0, 0, 700, 700))
+aspect3d(6,3,2)
+tgtnum=(ncol(data)-1)/3
+for(i in 1:1){
+lines3d(data[,i+1],data[,i+2],data[,i+3],col= hsv(30*i/360, 1, 1, alpha=0.6))
+points3d(data[,i+1],data[,i+2],data[,i+3],col= hsv(30*i/360, 1, 1, alpha=0.6))
+}
+view3d(theta=0, phi=-90, fov=60, zoom=0.8, scale=par3d("scale"), interactive=TRUE)
+aspect3d(1,1,1)
+path_substruction<-function(pathlist,num){
+match=regexpr("/DLT_TGT3D.csv", pathlist)[1]
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+up=""
+for(i in 1:num){
+up=past0(up,"../")
+}
+setwd(up)
+parentdir=getwd()
+name=str_sub(pathlist[1],str_length(parentdir),match)
+return(name)
+}
+pathlist
+regexpr(pathlist,pattern=r".*/(.*?)$")
+str_subset(pathlist,pattern=r".*/(.*?)$")
+str_subset(pathlist,pattern="r.*/(.*?)$")
+str_locate(pathlist,pattern="r.*/(.*?)$")
+str_sub(pathlist,pattern="r.*/(.*?)$")
+filename_start=str_locate(pathlist,pattern="r.*/(.*?)$")[1,2]
+filename_start
+match=stringr::str_sub(pathlist,1,match)
+match=regexpr("/DLT_TGT3D.csv", pathlist)[1]
+match
+str_locate(pathlist,pattern="r.*/(.*?)$")
+pathlist
+pattern="r.*/(.*?)$"
+filename=basename(pathlist)
+filename
+match=regexpr(filename, pathlist)[1]
+dir=stringr::str_sub(pathlist,1,match)
+dir
+dir=stringr::str_sub(pathlist,1,match-1)
+setwd(dir)
+dir
+num=2
+up=""
+for(i in 1:num){
+up=past0(up,"../")
+}
+for(i in 1:num){
+up=paste0(up,"../")
+}
+setwd(up)
+parentdir=getwd()
+parentdir
+match=regexpr(filename, pathlist)[1]-1
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+up=""
+for(i in 1:num){
+up=paste0(up,"../")
+}
+setwd(up)
+parentdir=getwd()
+name=str_sub(pathlist,str_length(parentdir),match)
+name
+regexpr(filename, pathlist)
+path_substruction<-function(pathlist,num){
+filename=basename(pathlist)
+match=regexpr(filename, pathlist)[1]-1
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+up=""
+for(i in 1:num){
+up=paste0(up,"../")
+}
+setwd(up)
+parentdir=getwd()
+name=str_sub(pathlist,str_length(parentdir),match)
+return(name)
+}
+path_substruction(pathlist, 3)
+parentdir
+path_substruction<-function(pathlist,num){
+filename=basename(pathlist)
+match=regexpr(filename, pathlist)[1]-1
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+up=""
+for(i in 1:num){
+up=paste0(up,"../")
+}
+setwd(up)
+parentdir=getwd()
+name=str_sub(pathlist,str_length(parentdir)-1,match)
+return(name)
+}
+path_substruction(pathlist, 3)
+path_substruction(pathlist, 2)
+path_substruction(pathlist, 1)
+parentdir
+str_length(parentdir)
+match
+name
+path_substruction<-function(pathlist,num){
+filename=basename(pathlist)
+match=regexpr(filename, pathlist)[1]-1
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+up=""
+for(i in 1:num){
+up=paste0(up,"../")
+}
+setwd(up)
+parentdir=getwd()
+name=str_sub(pathlist,str_length(parentdir)+1,match)
+return(name)
+}
+path_substruction(pathlist, 1)
+path_substruction(pathlist, 2)
+path_substruction(pathlist, 3)
+path_substruction<-function(pathlist,num){
+filename=basename(pathlist)
+match=regexpr(filename, pathlist)[1]-1
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+up=""
+for(i in 1:num){
+up=paste0(up,"../")
+}
+setwd(up)
+parentdir=getwd()
+name=str_sub(pathlist,str_length(parentdir)+1,str_length(pathlist))
+return(name)
+}
+path_substruction(pathlist, 3)
+path_substruction(pathlist, 2)
+path_substruction(pathlist, 1)
+path_substruction(pathlist, 0)
+dir
+setwd("")
+path_substruction<-function(pathlist,num){
+filename=basename(pathlist)
+match=regexpr(filename, pathlist)[1]-1
+dir=stringr::str_sub(pathlist,1,match)
+setwd(dir)
+if(num!=0){
+up=""
+for(i in 1:num){
+up=paste0(up,"../")
+}
+setwd(up)
+}
+parentdir=getwd()
+name=str_sub(pathlist,str_length(parentdir)+1,str_length(pathlist))
+return(name)
+}
+path_substruction(pathlist, 0)
+path_substruction(pathlist, 1)
+path_substruction(pathlist, 2)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+traceback()
+regexpr
+dstfile
+tgtdir
+length(files)
+files
+dir="/Volumes/GoogleDrive-109908342966361347756/共有ドライブ/画像解析/20200808/06"
+files  <- list.files(dir,recursive=T, include.dirs=T,full.names=T,pattern="DLT_TGT3D")
+files
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+objects
+if(drawOri3D){
+drawScene(c(objects_ori))
+next
+}
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+drawOri3D
+if(drawOri3D){
+drawScene(c(objects_ori),60,path_substruction(files[filenum],3))
+next()
+}
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+filename=basename(pathlist)
+filename
+pathlist
+dir_name=dirname(pathlist)
+dir_name
+dir_name=dirname(dir_name)
+dir_name
+path_substruction<-function(pathlist,num){
+filename=basename(pathlist)
+dir_name=dirname(pathlist)
+if(num!=0){
+for(i in 1:num){
+dir_name=dirname(dir_name)
+}
+}
+name=str_sub(pathlist,str_length(dir_name)+1,str_length(pathlist))
+return(name)
+}
+path_substruction(pathlist,1)
+path_substruction(pathlist,2)
+path_substruction(pathlist,0)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+drawScene(c(objects_ori))
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+position
+objects_ori
+na.omit(objects_ori[[0]])
+na.omit(objects_ori[[1]])
+na.omit(objects_ori)
+na.omit(objects_ori)
+na.omit(objects_ori[[1]])
+na.omit(objects_ori[[2]])
+na.omit(objects_ori[[3]])
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+traceback()
+no_NA
+debugSource("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+debugSource("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+na.omit(range)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+debugSource("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+no_NA
+is.infinite(no_NA)
+range
+no_NA=inf.omit(range)
+d_omit<-as.data.frame(range[is.finite(rowSums(range)),])
+d_omit
+nrow(d_omit)==0
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+deobjectize<-function(obj){
+deobj<-data.frame(matrix(rep(NA, nrow(obj[[1]])), ncol=1))[,numeric(0)]
+for(k in 1:length(obj)){
+deobj=cbind(deobj,obj[[k]])
+}
+return(deobj)
+}
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+update_src
+update_dst
+files
+parts
+tgtdir
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/解析プログラム/dragonfly_3Danalysis.R", echo=TRUE)
+source("~/Dropbox/コウモリ/捕食行動関係（西海さん）/松田君/論文原稿/submission/Source dataset/analysis/sourcecode.R", echo=TRUE)
+fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,1/AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+1,c(-4,0),c(0,80),
+"Distance","Scan rate","fig1e.png",0,1)
+fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,1/AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+1,c(-4,0),c(0,80),
+"Distance","Scan rate","fig1e.png",1,1)
+fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,1/AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+1,c(-4,0),c(0,80),
+"Distance","Scan rate","fig1e.png",0,1,1)
+fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,1/AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+1,c(-4,0),c(0,80),
+"Distance","Scan rate","fig1e.png",1,0)
+fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+1,c(-4,0),c(0,1/80),
+"Distance","Scan rate","fig1e.png",0,0)
+fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+1,c(-4,0),c(0,80),
+"Distance","Scan rate","fig1e.png",0,0)
+fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+1,c(-4,0),c(0,1/40),
+"Distance","Scan rate","fig1e.png",0,0)
+fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+1,c(-4,0),c(0,1/10),
+"Distance","Scan rate","fig1e.png",0,0)

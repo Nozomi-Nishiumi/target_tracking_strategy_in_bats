@@ -1,0 +1,3972 @@
+#  Created by nozomi nishiumi(n.oz.o@hotmail.co.jp) on 2022/12/01.
+
+
+if( dev.cur() > 1 ) dev.off()
+rm( list = ls( envir = globalenv() ), envir = globalenv() )
+
+targetPackages <- c("ggExtra",
+                    "ggplot2", 
+                    "MASS",
+                    "mgcv",
+                    "rgl",
+                    "pracma",
+                    "lme4",
+                    "lmerTest",
+                    "tcltk",
+                    "MuMIn",
+                    "car",
+                    "merTools",
+                    "performance",
+                    "ggExtra",
+                    "SimDesign"
+) 
+newPackages <- targetPackages[!(targetPackages %in% installed.packages()[,"Package"])]
+if(length(newPackages)) install.packages(newPackages, repos = "http://cran.us.r-project.org")
+for(package in targetPackages) library(package, character.only = T)
+
+
+rm(list = ls(all.names = TRUE))
+
+vectoring<-function(HV){
+  h=HV[,1]/180*pi
+  v=HV[,2]/180*pi
+  x=cos(v)
+  y=sin(v)*sin(h)
+  z=sin(v)*cos(h)
+  E=data.frame(x,y,z)
+  return(E)
+}
+
+direction2<-function(target, base=c(0,0,0)){
+  R=target-base
+  colnames(R)=c("x","y","z")
+  h=atan2(R[,2],R[,3])
+  v=atan2(sqrt(R[,2]^2+R[,3]^2),R[,1])
+  dist=sqrt(R[,1]^2+R[,2]^2+R[,3]^2)
+  
+  
+  x=cos(v)
+  y=sin(v)*sin(h)
+  z=sin(v)*cos(h)
+  E=data.frame(x,y,z)
+  
+  H=h*180/pi
+  V=v*180/pi
+  H=normalizeRotation(H)
+  
+  theta=H/180*pi
+  radius=V/180*pi
+  LeadAngle=atan2(z,x)*180/pi
+  SideAngle=atan2(y,x)*180/pi
+  Longi=atan2(z,sqrt(x^2+y^2))*180/pi
+  
+  directionData<-list(data.frame(H,V,LeadAngle,SideAngle,Longi),data.frame(x=E$x,y=E$y,z=E$z),data.frame(x=R$x,y=R$y,z=R$z))  
+  names(directionData)=c("hv","xyz","xyz_R")
+  return(directionData)
+}
+
+cnvrtAngle2Vector<-function(angle){
+  
+  H=angle[,1]
+  V=angle[,2]
+  x=cos(V*(pi/180))*cos(H*(-pi/180))
+  y=cos(V*(pi/180))*sin(H*(-pi/180))
+  z=sin(V*(pi/180))
+  
+  
+  aZ=atan2(y,x)
+  rotatedZ=data.frame(cos(aZ-aZ)*sqrt(x^2+y^2),sin(aZ-aZ)*sqrt(x^2+y^2),z)
+  colnames(rotatedZ)=c("x","y","z")
+  
+  
+  aY=atan2(rotatedZ$z,rotatedZ$x)
+  rotatedY=data.frame(cos(aY-aY)*sqrt(rotatedZ$x^2+rotatedZ$z^2),rotatedZ$y,sin(aY-aY)*sqrt(rotatedZ$x^2+rotatedZ$z^2))
+  colnames(rotatedY)=c("x","y","z")
+  
+  aY_90=aY-pi/2
+  
+  a<-data.frame(H,V,x,y,z,aZ,aY,aY_90)
+  return(a)
+}
+
+angleForAlign<-function(vector){
+  
+  
+  x=vector$x
+  y=vector$y
+  z=vector$z
+  
+  
+  aZ=atan2(y,x)
+  rotatedZ=data.frame(cos(aZ-aZ)*sqrt(x^2+y^2),sin(aZ-aZ)*sqrt(x^2+y^2),z)
+  colnames(rotatedZ)=c("x","y","z")
+  
+  
+  aY=atan2(rotatedZ$z,rotatedZ$x)
+  rotatedY=data.frame(cos(aY-aY)*sqrt(rotatedZ$x^2+rotatedZ$z^2),rotatedZ$y,sin(aY-aY)*sqrt(rotatedZ$x^2+rotatedZ$z^2))
+  colnames(rotatedY)=c("x","y","z")
+  
+  
+  a<-data.frame(aZ,aY)
+  colnames(a)=c("Z","Y")
+  return(a)
+}
+
+rotationPolar<-function(vector,angle,xyz){
+  
+  x=vector$x
+  y=vector$y
+  z=vector$z
+  
+  aX=atan2(y,z)
+  aY=atan2(z,x)
+  aZ=atan2(y,x)
+  
+  if(xyz==1){
+    rotated=data.frame(x,sin(aX-angle)*sqrt(z^2+y^2),cos(aX-angle)*sqrt(z^2+y^2))
+  }
+  if(xyz==2){
+    rotated=data.frame(cos(aY-angle)*sqrt(z^2+x^2),y,sin(aY-angle)*sqrt(z^2+x^2))
+  }
+  if(xyz==3){
+    rotated=data.frame(cos(aZ-angle)*sqrt(x^2+y^2),sin(aZ-angle)*sqrt(x^2+y^2),z)
+  }
+  
+  colnames(rotated)=c("x","y","z")
+  
+  return(rotated)
+}
+
+normalizeRotation<-function(x){
+  while(length(x[which(x>=360)])>0){
+    x[which(x>=360)]=x[which(x>=360)]-360
+  }
+  
+  while(length(x[which(x<0)])>0){
+    
+    x[which(x<0)]=x[which(x<0)]+360
+  }
+  
+  return(x)
+}
+
+drawSphere<-function(r=1,size=180){
+  
+  a=pi*size/180
+  theta=seq(0,2*pi+0.1,0.1)
+  x=r*cos(theta)
+  y=r*sin(theta)
+  z=0*theta
+  circle=data.frame(x,y,z)
+  plot3d(circle,type="n",axes=F,
+         xlab=c(""),ylab=c(""),zlab=c(""),
+         xlim=c(-1.5*r,1.5*r),ylim=c(-1.5*r,1.5*r),zlim=c(-1.5*r,1.5*r))
+  aspect3d(1,1,1)
+  bearing=seq(0,pi,pi/8)
+  for(i in 1:length(bearing)){
+    longitude.x=circle$x
+    longitude.y=circle$y*cos(bearing[i])
+    longitude.z=circle$y*sin(bearing[i])
+    longitude=data.frame(longitude.x,longitude.y,longitude.z)
+    rgl.linestrips(longitude,color="black",alpha=0.3,lwd=1.0)
+  }
+  
+  circle2=data.frame(z,x,y)
+  colnames(circle2)=c("x","y","z")
+  
+  deviation=seq(0,a,a/4)
+  for(i in 1:length(deviation)){
+    latitude.r=r*sin(deviation[i])
+    latitude.x=circle2$x+r*cos(deviation[i])
+    latitude.y=circle2$y*latitude.r/r
+    latitude.z=circle2$z*latitude.r/r
+    latitude=data.frame(latitude.x,latitude.y,latitude.z)
+    rgl.linestrips(latitude,color="black",alpha=0.3,lwd=1.0)
+  }
+  
+  text.longitude=seq(0,2*pi-pi/8,pi/2)
+  info.longitude=c("0","-90","180/-180","90")
+  deviation2=deviation-a/8
+  for(i in 1:length(text.longitude)){
+    text.r=r*1.1
+    text.r_longitude=r*sin(deviation2[3])*1.1
+    text.x=text.r*cos(deviation2[3])
+    text.y=text.r_longitude*sin(text.longitude[i])
+    text.z=text.r_longitude*cos(text.longitude[i])
+    text3d(text.x, text.y,text.z, texts=info.longitude[i], color="black")
+  }
+  
+  info.latitude=seq(0,size,size/4)
+  for(i in 2:length(deviation)){
+    text.r=r*1.1
+    text.r_latitude=r*sin(deviation[i])
+    text.x=text.r*cos(deviation[i])
+    text.y=text.r_latitude*sin(pi/16)
+    text.z=text.r_latitude*cos(pi/16)
+    text3d(text.x, text.y,text.z, texts=info.latitude[i], color="black")
+  }
+  
+  deviation=seq(pi,a,-pi/4)
+  for(i in 1:length(deviation)){
+    latitude.r=r*sin(deviation[i])
+    latitude.x=circle2$x+r*cos(deviation[i])
+    latitude.y=circle2$y*latitude.r/r
+    latitude.z=circle2$z*latitude.r/r
+    latitude=data.frame(latitude.x,latitude.y,latitude.z)
+    rgl.linestrips(latitude,color="black",alpha=0.3,lwd=1.0)
+  }
+  
+  labels=c("x","y","z")
+  x=c(r*1.2,0,0)
+  y=c(0,r*1.2,0)
+  z=c(0,0,r*1.2)
+  axes=data.frame(x,y,z)
+  rgl.texts(axes, text=labels, color="black")
+}
+
+scaling_polar<-function(vector,inputangle,targetangle){
+  
+  x=vector$x
+  y=vector$y
+  z=vector$z
+  
+  aX=atan2(y,z)
+  rotated=rotationPolar(vector,aX,1)
+  
+  one=pi/180
+  calib=one*targetangle/inputangle
+  
+  angle=atan2(rotated$z,rotated$x)
+  scaled<-data.frame(cos(angle*calib)*sqrt(rotated$z^2+rotated$x^2),rotated$y,sin(angle*calib)*sqrt(rotated$z^2+rotated$x^2))
+  colnames(scaled)=c("x","y","z")
+  
+  Re_rotated=rotationPolar(scaled,-aX,1)
+  return(Re_rotated)
+}
+
+Polar_line2<-function(data1,data2,data3,size,limit,xlab,ylab,pointON,pathON,densityON, textON,backON,title,polar=1,hist="", area=NULL){
+  
+  if(!is.null(data1)){
+    longitude1=data1[,2]*cos(data1[,1]*pi/180)
+    latitude1=-data1[,2]*sin(data1[,1]*pi/180)
+    dataset1=na.omit(as.data.frame(cbind(latitude1,longitude1)))
+  }else{dataset1=NULL}
+  
+  if(!is.null(data2)){
+    longitude2=data2[,2]*cos(data2[,1]*pi/180)
+    latitude2=-data2[,2]*sin(data2[,1]*pi/180)
+    dataset2=na.omit(as.data.frame(cbind(latitude2,longitude2)))
+  }else{dataset2=NULL}
+  
+  if(!is.null(data3)){
+    longitude3=data3[,2]*cos(data3[,1]*pi/180)
+    latitude3=-data3[,2]*sin(data3[,1]*pi/180)
+    dataset3=na.omit(as.data.frame(cbind(latitude3,longitude3)))
+  }else{dataset3=NULL}
+  
+  
+  
+  draw<-ggplot() 
+  if(densityON=="densityON_b"){
+    draw<-draw+
+      stat_density2d(data=dataset2[,1:2], aes(x=dataset2[,1:2][,1], y=dataset2[,1:2][,2], alpha=..density..), 
+                     fill=rgb(1,0.4,0.4,alpha=0.8), geom="raster", contour = "false")
+  }
+  
+  theta=seq(0,2*pi, by=pi/100)
+  circlex=cos(theta)*limit
+  circley=sin(theta)*limit
+  
+  if(polar){
+    draw<-draw+
+      geom_polygon(aes(x=circlex, y=circley), colour="black", fill=NA,size = 0.4)+
+      geom_polygon(aes(x=circlex*2/4, y=circley*2/4), colour="black", fill=NA,size = 0.1)+
+      geom_line(aes(x=c(-limit,limit),y=c(0,0)), colour="black",size = 0.4)+
+      geom_line(aes(x=c(0,0),y=c(-limit,limit)), colour="black",size = 0.4)
+  }
+  
+  if(pointON=="pointON_a"){
+    draw<-draw+
+      geom_point(data=dataset1[,1:2], aes(x=dataset1[,1:2][,1], y=dataset1[,1:2][,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = rgb(0, 0, 0, alpha=0.5))+
+      geom_point(data=dataset2[,1:2], aes(x=dataset2[,1:2][,1], y=dataset2[,1:2][,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = rgb(0, 0, 0, alpha=0.5))+
+      geom_point(data=dataset3[,1:2], aes(x=dataset3[,1:2][,1], y=dataset3[,1:2][,2]),
+                 shape = 21, size = size*0.8, stroke = 1, colour = rgb(1, 0.35, 0.4, alpha=1), fill = rgb(1, 0.35, 0.4, alpha=0.5))
+    
+  }
+  
+  if(pointON=="pointON_b"){
+    draw<-draw+
+      geom_point(data=dataset1[,1:2], aes(x=dataset1[,1], y=dataset1[,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = rgb(0.5, 1, 0.5, alpha=0.6))+
+      geom_point(data=dataset2[,1:2], aes(x=dataset2[,1], y=dataset2[,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(4/360, 0/100, 80/100, alpha=0.6))+
+      geom_point(data=dataset3[,1:2], aes(x=dataset3[,1], y=dataset3[,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(1, 0.35, 0.4, alpha=1), fill = rgb(1, 0.35, 0.4, alpha=0.5))
+    
+  }
+  
+  if(pointON=="pointON_c"){
+    draw<-draw+
+      geom_point(data=dataset2[,1:2], aes(x=dataset2[,1:2][,1], y=dataset2[,1:2][,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.2), fill = rgb(0, 0, 0, alpha=0.5))
+  }
+  
+  if(pathON=="pathON"){
+    draw<-draw+
+      geom_path(data=dataset1[,1:2], aes(x=dataset1[,1:2][,1], y=dataset1[,1:2][,2]),
+                lwd = 1,col = rgb(0.5, 1, 0.5,alpha=0.3))+
+      geom_path(data=dataset2[,1:2], aes(x=dataset2[,1:2][,1], y=dataset2[,1:2][,2]),
+                lwd = 1,col = rgb(0, 0, 0,alpha=0.3))+
+      geom_path(data=dataset3[,1:2], aes(x=dataset3[,1:2][,1], y=dataset3[,1:2][,2]),
+                lwd = 1,col = rgb(1, 0.35, 0.4, alpha=0.3))
+  }
+  
+  if(densityON=="densityON_a"){
+    draw<-draw+
+      geom_density2d(data=dataset2[,1:2], aes(x=dataset2[,1:2][,1], y=dataset2[,1:2][,2]),col = rgb(1, 0,0),size=0.5)
+  }
+  
+  
+  
+  if(textON=="textON"){
+    sample1=seq(1,nrow(dataset1),6)
+    sample2=seq(1,nrow(dataset2),6)
+    sample3=seq(1,nrow(dataset3),6)
+    
+    omit1=dataset1[sample1,]
+    omit2=dataset2[sample2,]
+    omit3=dataset3[sample3,]
+    
+    print((dataset1))
+    
+    text1<-geom_text(data=omit1[,1:2],
+                     aes(x=omit1[,1], y=omit1[,2], label=sample1-1),cex=7,fontface = "bold")
+    
+    text2<-geom_text(data=omit2[,1:2],
+                     aes(x=omit2[,1], y=omit2[,2], label=sample2-1),cex =7,fontface = "bold",col=hsv(4/360, 65/100, 10/100, alpha=1))
+    
+    text3<-geom_text(data=omit3[,1:2],
+                     aes(x=omit3[,1], y=omit3[,2], label=sample3-1),cex =7,fontface = "bold",col = hsv(222/360, 60/100, 10/100, alpha=1))
+    
+    text1_circle<-geom_point(data=omit1[,1:2],
+                             aes(x=omit1[,1], y=omit1[,2], label=sample1-1),
+                             shape = 21, size = size, stroke = 1, colour = hsv(0, 0, 30/100, alpha=1), fill = rgb(1, 0.35, 0.4, alpha=0))
+    text2_circle<-geom_point(data=omit2[,1:2],
+                             aes(x=omit2[,1], y=omit2[,2], label=sample2-1),
+                             shape = 21, size = size, stroke = 1, colour = hsv(0, 0, 30/100, alpha=1), fill = hsv(222/360, 60/100, 100/100, alpha=0))
+    text3_circle<-geom_point(data=omit3[,1:2],
+                             aes(x=omit3[,1], y=omit3[,2], label=sample3-1),
+                             shape = 21, size = size, stroke = 1, colour = hsv(0, 0, 30/100, alpha=1), fill = hsv(222/360, 60/100, 100/100, alpha=0))
+    
+    draw<-draw+text2_circle+text3_circle
+  }
+  
+  if(backON=="backOFF"){
+    draw<-draw+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA), 
+      axis.text= element_blank(),
+      plot.title = element_blank(),
+      axis.title = element_blank()
+    )
+  }
+  
+  
+  
+  if(pointON=="pointON_c"){
+    draw<-draw+
+      geom_point(data=dataset1[,1:2], aes(x=dataset1[,1:2][,1], y=dataset1[,1:2][,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = rgb(0, 0, 0, alpha=0.5))+
+      geom_point(data=dataset3[,1:2], aes(x=dataset3[,1:2][,1], y=dataset3[,1:2][,2]),
+                 shape = 21, size = size*0.8, stroke = 1, colour = rgb(1, 0.35, 0.4, alpha=1), fill = rgb(1, 0.35, 0.4, alpha=0.5))
+    
+  }
+  
+  if(!is.null(area)){
+    draw<-draw+xlim(-area,area)+ylim(-area,area)+coord_fixed()
+  }else{
+    draw<-draw+coord_fixed()
+  }
+  draw<-draw+xlab(xlab)+ylab(ylab)
+  
+  if(hist=="histON"){
+    
+    draw<-ggMarginal(
+      draw,
+      binwidth = 0.5,
+      type = "histogram",
+      margins = "both",
+      size = 7,
+      col=hsv(0,0,0.5),
+      fill=hsv(0,0,0.5)
+    )
+  }
+  
+  
+  print(draw)
+  ggsave(title, draw, bg = "transparent",dpi=600,width=10,height=10)
+}
+
+Polar_line3<-function(data1,data2,data3,size,limit,xlab,ylab,pointON,pathON,densityON, textON,backON,title,polar=1,hist="", area=NULL){
+  
+  if(!is.null(data1)){
+    longitude1=data1[,2]*cos(data1[,1]*pi/180)
+    latitude1=-data1[,2]*sin(data1[,1]*pi/180)
+    dataset1=na.omit(as.data.frame(cbind(latitude1,longitude1)))
+  }else{dataset1=NULL}
+  
+  if(!is.null(data2)){
+    longitude2=data2[,2]*cos(data2[,1]*pi/180)
+    latitude2=-data2[,2]*sin(data2[,1]*pi/180)
+    dataset2=na.omit(as.data.frame(cbind(latitude2,longitude2)))
+  }else{dataset2=NULL}
+  
+  if(!is.null(data3)){
+    longitude3=data3[,2]*cos(data3[,1]*pi/180)
+    latitude3=-data3[,2]*sin(data3[,1]*pi/180)
+    dataset3=na.omit(as.data.frame(cbind(latitude3,longitude3)))
+  }else{dataset3=NULL}
+  
+  
+  
+  draw<-ggplot() 
+  theta=seq(0,2*pi, by=pi/100)
+  circlex=cos(theta)*limit
+  circley=sin(theta)*limit
+  
+  if(polar){
+    draw<-draw+
+      geom_polygon(aes(x=circlex, y=circley), colour="black", fill=NA,size = 0.4)+
+      geom_polygon(aes(x=circlex*2/4, y=circley*2/4), colour="black", fill=NA,size = 0.1)+
+      geom_line(aes(x=c(-limit,limit),y=c(0,0)), colour="black",size = 0.4)+
+      geom_line(aes(x=c(0,0),y=c(-limit,limit)), colour="black",size = 0.4)
+  }
+  
+  if(pointON=="pointON_b"){
+    draw<-draw+
+      geom_point(data=dataset2[,1:2], aes(x=dataset2[,1], y=dataset2[,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(4/360, 0/100, 80/100, alpha=0.6))+
+      geom_point(data=dataset3[,1:2], aes(x=dataset3[,1], y=dataset3[,2]),
+                 shape = 21, size = size, stroke = 0.3, colour = rgb(1, 0.35, 0.4, alpha=1), fill = rgb(1, 0.35, 0.4, alpha=0.5))
+    
+  }
+  
+  if(is.null(data1)){
+    draw<-draw+
+      geom_path(data=dataset3[,1:2], aes(x=dataset3[,1:2][,1], y=dataset3[,1:2][,2]),
+                lwd = 1,col = rgb(1, 0.35, 0.4, alpha=0.3))+
+      geom_path(data=dataset2[,1:2], aes(x=dataset2[,1:2][,1], y=dataset2[,1:2][,2]),
+                lwd = 1,col = rgb(0, 0, 0,alpha=0.3))
+  }else{
+    draw<-draw+
+      geom_path(data=dataset1[,1:2], aes(x=dataset1[,1:2][,1], y=dataset1[,1:2][,2]),
+                lwd = 1,col = rgb(1, 0.35, 0.4, alpha=0.3))+
+      geom_path(data=dataset2[,1:2], aes(x=dataset2[,1:2][,1], y=dataset2[,1:2][,2]),
+                lwd = 1,col = rgb(0, 0, 0,alpha=0.3))
+  }
+  
+  if(backON=="backOFF"){
+    draw<-draw+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA), 
+      axis.text= element_blank(),
+      plot.title = element_blank(),
+      axis.title = element_blank()
+    )
+  }
+  
+  
+  
+  
+  if(!is.null(area)){
+    draw<-draw+xlim(-area,area)+ylim(-area,area)+coord_fixed()
+  }else{
+    draw<-draw+coord_fixed()
+  }
+  draw<-draw+xlab(xlab)+ylab(ylab)
+  
+  
+  print(draw)
+  ggsave(title, draw, bg = "transparent",dpi=600,width=10,height=10)
+}
+
+olthoPlot<-function(v1,v2,p1,p2,angle,size,xlab,ylab,textON,backOFF,title){
+  point1=p1
+  point2=p2
+  
+  draw<-ggplot()
+  pulse_vector<-geom_spoke(data=p1[,1:2],aes(x=p1[,1],y=p1[,2],angle = angle*pi/180, radius = 0.200),
+                           lwd = 0.5, col = rgb(0, 0, 0, alpha=0.7))
+  point_a<-geom_point(data=point1[,1:2], aes(x=point1[,1:2][,1], y=point1[,1:2][,2]),
+                      shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(222/360, 60/100, 100/100, alpha=0.6))
+  point_b<-geom_point(data=point2[,1:2], aes(x=point2[,1:2][,1], y=point2[,1:2][,2]),
+                      shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = rgb(1, 0.35, 0.4, alpha=0.5))
+  
+  point_a_init<-geom_point(aes(x=p1[1,1], y=p1[1,2]),
+                           shape = 22, size = size, stroke = 1, colour = rgb(0, 0, 0), fill = hsv(222/360, 60/100, 100/100, alpha=1))
+  point_a_end<-geom_point(aes(x=p1[nrow(p1),1], y=p1[nrow(p1),2]),
+                          shape = 23, size = size, stroke = 1, colour = rgb(0, 0, 0), fill = hsv(222/360, 60/100, 100/100, alpha=1))
+  
+  point_b_init<-geom_point(aes(x=p2[1,1], y=p2[1,2]),
+                           shape = 22, size = size, stroke = 1, colour = rgb(0, 0, 0), fill = rgb(0.5,0.5,0.5, alpha=1))
+  point_b_end<-geom_point(aes(x=p2[nrow(p2),1], y=p2[nrow(p2),2]),
+                          shape = 23, size = size, stroke = 1, colour = rgb(0, 0, 0), fill = rgb(0.5,0.5,0.5, alpha=1))
+  
+  
+  path_a<-geom_path(data=v1[,1:2], aes(x=v1[,1:2][,1], y=v1[,1:2][,2]),
+                    lwd = 1,col = hsv(222/360, 60/100, 100/100,alpha=0.3))
+  path_b<-geom_path(data=v2[,1:2], aes(x=v2[,1:2][,1], y=v2[,1:2][,2]),
+                    lwd = 1,col = rgb(1, 0.35, 0.4,alpha=0.3))
+  
+  
+  
+  if(backOFF=="backOFF"){
+    draw<-draw+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA), 
+      plot.title = element_blank(),
+      axis.title = element_blank(),
+      axis.text= element_blank()
+    )
+  }
+  
+  xmin=min(na.omit(c(v1[,1],v2[,1])))
+  xmax=max(na.omit(c(v1[,1],v2[,1])))
+  ymin=min(na.omit(c(v1[,2],v2[,2])))
+  ymax=max(na.omit(c(v1[,2],v2[,2])))
+  
+  xrange=xmax-xmin
+  yrange=ymax-ymin
+  aspect_ratio=yrange/xrange
+  
+  xlimitation<-xlim(xmin-xrange*0,xmax+xrange*0.0)
+  ylimitation<-ylim(ymin-yrange*0.8,ymax+yrange*0.8)
+  
+  draw<-draw+
+    point_a+point_b+
+    path_a+path_b+
+    # point_a_init+point_b_init+
+    # point_a_end+point_b_end+
+    pulse_vector
+  
+  
+  if(textON=="textON"){
+    
+    sample1=seq(1,nrow(p1),6)
+    sample2=seq(1,nrow(p2),6)
+    
+    omit1=p1[sample1,]
+    omit2=p2[sample2,]
+    
+    
+    text1<-geom_text(data=omit1[,1:2],
+                     aes(x=omit1[,1], y=omit1[,2]+0.150, label=sample1-1),cex=3,fontface = "bold")
+    
+    text2<-geom_text(data=omit2[,1:2],
+                     aes(x=omit2[,1], y=omit2[,2]+0.150, label=sample2-1),cex =3,fontface = "bold",colour=rgb(0, 0, 0.6))
+    
+    
+    text1_circle<-geom_point(data=omit1[,1:2],
+                             aes(x=omit1[,1], y=omit1[,2], label=sample1-1),
+                             shape = 21, size = size, stroke = 1, colour = rgb(0, 0, 0, alpha=0.6), fill = rgb(1, 0.35, 0.4, alpha=0))
+    text2_circle<-geom_point(data=omit2[,1:2],
+                             aes(x=omit2[,1], y=omit2[,2], label=sample2-1),
+                             shape = 21, size = size, stroke = 1, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(222/360, 60/100, 100/100, alpha=0))
+    
+    
+    # text1_init<-geom_text(aes(x=dataset1[1,1], y=dataset1[1,2], label="i"),cex =6,fontface = "bold")
+    # text2_init<-geom_text(aes(x=dataset2[1,1], y=dataset2[1,2], label="i"),cex =6,fontface = "bold")
+    # 
+    # text1_end<-geom_text(aes(x=dataset1[nrow(dataset1),1], y=dataset1[nrow(dataset1),2], label="e"),cex =6,fontface = "bold")
+    # text2_end<-geom_text(aes(x=dataset2[nrow(dataset2),1], y=dataset2[nrow(dataset2),2], label="e"),cex =6,fontface = "bold")
+    draw<-draw+
+      # text1+
+      # text2+
+      text1_circle+
+      text2_circle
+  }
+  
+  draw<-draw+
+    xlimitation+ylimitation+coord_fixed()
+  draw<-draw+xlab(xlab)+ylab(ylab)
+  print(draw)
+  # theme(aspect.ratio=aspect_ratio)
+  ggsave(title, draw, bg = "transparent",dpi=600,width=5,height=5)
+  
+  
+}
+
+olthoPlot_sim<-function(v1,v2,v3,p1,p2,p3,q1,q2,size,xlab, ylab,textON,backOFF,title=""){
+  point1=p1
+  point2=p2
+  point3=p3
+  
+  los=q2-q1
+  los=los/sqrt(los[,1]^2+los[,2]^2)
+  df=cbind(p1,los+p1)
+  draw<-ggplot()
+  
+  pulse_vector<-geom_segment(aes(x = df[,1], y = df[,2], xend = df[,3], yend = df[,4], colour = "segment"), data = df)
+  
+  point_a<-geom_point(data=point1[,1:2], aes(x=point1[,1:2][,1], y=point1[,1:2][,2]),
+                      shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(222/360, 60/100, 100/100, alpha=0.6))
+  point_b<-geom_point(data=point2[,1:2], aes(x=point2[,1:2][,1], y=point2[,1:2][,2]),
+                      shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = rgb(1, 0.35, 0.4, alpha=0.5))
+  point_c<-geom_point(data=point3[,1:2], aes(x=point3[,1:2][,1], y=point3[,1:2][,2]),
+                      shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(100/360, 0/100, 30/100, alpha=0.6))
+  
+  
+  path_a<-geom_path(data=v1[,1:2], aes(x=v1[,1:2][,1], y=v1[,1:2][,2]),
+                    lwd = 1,col = hsv(222/360, 60/100, 100/100,alpha=0.3))
+  path_b<-geom_path(data=v2[,1:2], aes(x=v2[,1:2][,1], y=v2[,1:2][,2]),
+                    lwd = 1,col = rgb(1, 0.35, 0.4,alpha=0.3))
+  path_c<-geom_path(data=v3[,1:2], aes(x=v3[,1:2][,1], y=v3[,1:2][,2]),
+                    lwd = 1,col = hsv(100/360, 0/100, 20/100,alpha=0.3))
+  
+  
+  
+  if(backOFF=="backOFF"){
+    draw<-draw+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA), 
+      plot.title = element_blank(),
+      axis.title = element_blank(),
+      axis.text= element_blank()
+    )
+  }
+  
+  xmin=min(na.omit(c(v1[,1],v2[,1],v3[,1])))
+  xmax=max(na.omit(c(v1[,1],v2[,1],v3[,1])))
+  ymin=min(na.omit(c(v1[,2],v2[,2],v3[,2])))
+  ymax=max(na.omit(c(v1[,2],v2[,2],v3[,2])))
+  
+  xrange=xmax-xmin
+  yrange=ymax-ymin
+  aspect_ratio=yrange/xrange
+  
+  xlimitation<-xlim(xmin-xrange*0,xmax+xrange*0.0)
+  ylimitation<-ylim(ymin-yrange*0.8,ymax+yrange*0.8)
+  
+  draw<-draw+
+    point_a+point_b+point_c+
+    path_a+path_b+path_c
+  
+  
+  if(textON=="textON"){
+    
+    sample1=seq(1,nrow(p1),6)
+    sample2=seq(1,nrow(p2),6)
+    sample3=seq(1,nrow(p3),6)
+    
+    omit1=p1[sample1,]
+    omit2=p2[sample2,]
+    omit3=p3[sample3,]
+    
+    
+    text1<-geom_text(data=omit1[,1:2],
+                     aes(x=omit1[,1], y=omit1[,2]+150, label=sample1-1),cex=3,fontface = "bold")
+    
+    text2<-geom_text(data=omit2[,1:2],
+                     aes(x=omit2[,1], y=omit2[,2]+150, label=sample2-1),cex =3,fontface = "bold",colour=rgb(0, 0, 0.6))
+    
+    
+    text1_circle<-geom_point(data=omit1[,1:2],
+                             aes(x=omit1[,1], y=omit1[,2], label=sample1-1),
+                             shape = 21, size = size, stroke = 1, colour = rgb(0, 0, 0, alpha=0.6), fill = rgb(1, 0.35, 0.4, alpha=0))
+    text2_circle<-geom_point(data=omit2[,1:2],
+                             aes(x=omit2[,1], y=omit2[,2], label=sample2-1),
+                             shape = 21, size = size, stroke = 1, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(222/360, 60/100, 100/100, alpha=0))
+    text3_circle<-geom_point(data=omit3[,1:2],
+                             aes(x=omit3[,1], y=omit3[,2], label=sample3-1),
+                             shape = 21, size = size, stroke = 1, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(222/360, 60/100, 100/100, alpha=0))
+    
+    # text1_init<-geom_text(aes(x=dataset1[1,1], y=dataset1[1,2], label="i"),cex =6,fontface = "bold")
+    # text2_init<-geom_text(aes(x=dataset2[1,1], y=dataset2[1,2], label="i"),cex =6,fontface = "bold")
+    #
+    # text1_end<-geom_text(aes(x=dataset1[nrow(dataset1),1], y=dataset1[nrow(dataset1),2], label="e"),cex =6,fontface = "bold")
+    # text2_end<-geom_text(aes(x=dataset2[nrow(dataset2),1], y=dataset2[nrow(dataset2),2], label="e"),cex =6,fontface = "bold")
+    draw<-draw+
+      # text1+
+      # text2+
+      text1_circle+
+      text2_circle+
+      text3_circle
+  }
+  
+  draw<-draw+
+    xlimitation+ylimitation+coord_fixed()
+  draw<-draw+xlab(xlab)+ylab(ylab)
+  print(draw)
+  # theme(aspect.ratio=aspect_ratio)
+  if(title!=""){
+    ggsave(title, draw, bg = "transparent",dpi=600,width=5,height=5)
+  }
+  
+  
+}
+
+drawDirection3d<-function(STD,OBJ,REF,xlab,ylab,name,phase=c(1:nrow(REF)),limit=0){
+  dir.create("graphics")
+  dir.create("graphics/pulse_direction")
+  if(limit==0){
+    if(max(na.omit(REF[,2]))<1.1){
+      size=3.0
+    }else{
+      size=30
+    }
+  }else{
+    size=limit
+  }
+  
+  S_hv=STD[phase,]
+  O_hv=OBJ[phase,]
+  R_hv=REF[phase,]
+  
+  S_xyz=vectoring(S_hv)
+  O_xyz=vectoring(O_hv)
+  R_xyz=vectoring(R_hv)
+  S_xyz=na.omit(S_xyz)
+  O_xyz=na.omit(O_xyz)
+  R_xyz=na.omit(R_xyz)
+  
+  
+  Polar_line2(S_hv,O_hv,R_hv,8,size,xlab,ylab,"pointON_b","pathON","densityOFF","textOFF","backON",paste("graphics/pulse_direction/",name,".png", sep=""),0)
+  
+  if(draw_RGLfigures){
+    
+    if(rgl.cur()!=0){
+      rgl.close()
+    }
+    drawSphere(1,size)
+    par3d(windowRect = c(0, 0, 700, 700))
+    rollx=rotationMatrix(-pi/2, 1,0,0)
+    rolly=rotationMatrix(0, 0,1,0)
+    rollz=rotationMatrix(pi/2, 0,0,1)
+    rgl.viewpoint(userMatrix=rollx%*%rolly%*%rollz, fov=0, zoom=0.006*size, scale=par3d("scale"), interactive=TRUE)
+    legend3d("topright", legend = c(head3,'Pulse','Target'), pch = 16, col = c(rgb(1,1,1),rgb(0.5,0.5,0.5),rgb(1,0.5,0.5)), cex=1, inset=c(0.02))
+    
+    rgl.points(0,0,0,col="black")
+    rgl.points(S_xyz,col=rgb(0,0,0),alpha=0.4,size=8)
+    rgl.points(O_xyz,col=rgb(0,0,0),alpha=0.4,size=8)
+    rgl.points(R_xyz,col=rgb(1,0.3,0.3),alpha=0.6,size=8)
+    rgl.linestrips(S_xyz,col=rgb(0,0,0),alpha=0.4,size=8)
+    rgl.linestrips(O_xyz,col=rgb(0,0,0),alpha=0.4,size=8)
+    rgl.linestrips(R_xyz,col=rgb(1,0.3,0.3),alpha=0.6,size=8)
+    
+    writeWebGL(dir=getwd(),filename=paste0("graphics/pulse_direction/",name,"3D.html"),width=1000, height=600)
+  }
+}
+
+drawflatcircle<-function(x,y,z,surface=3,rad=10,r=0,g=0,b=0,alpha=1){
+  
+  theta=seq(0,2*pi,0.5)
+  axes=data.frame(theta,theta,theta)
+  axes[,surface]=0
+  axes[,-surface][,1]=rad*cos(theta)
+  axes[,-surface][,2]=rad*sin(theta)
+  
+  for(i in 1:length(x)){
+    circle=data.frame(axes[,1]+x[i],axes[,2]+y[i],axes[,3]+z[i])
+    
+    polygon3d(circle,color=rgb(r,g,b,alpha=alpha))
+  }
+}
+
+drawScene<-function(pulse,position){
+  dir.create("graphics")
+  dir.create("graphics/scene")  
+  
+  olthoPlot(data.frame(position$x_bx,position$x_by),
+            data.frame(position$x_mx,position$x_my),
+            data.frame(pulse$x_bx,pulse$x_by),
+            data.frame(pulse$x_mx,pulse$x_my),
+            -pulse$peakdirectionH,
+            2,"x","y","textON","backON","graphics/scene/scene2Dx_y.png")
+  
+  olthoPlot(data.frame(position$x_bx,position$x_bz),
+            data.frame(position$x_mx,position$x_mz),
+            data.frame(pulse$x_bx,pulse$x_bz),
+            data.frame(pulse$x_mx,pulse$x_mz),
+            pulse$peakdirectionV,
+            2,"x","z","textON","backON","graphics/scene/scene2Dx_z.png")
+  
+  if(draw_RGLfigures){
+    if(rgl.cur()!=0){
+      rgl.close()
+    }
+    range_x=c(-0.500,5.500)
+    range_y=c(-1.500,1.500)
+    range_z=c(-0.500,1.500)
+    plot3d(position$x_bx,position$x_by,position$x_bz,type="n",
+           xlim=range_x,ylim=range_y,zlim=range_z,xlab="x",ylab="y",zlab="z")
+    par3d(windowRect = c(0, 0, 700, 700))
+    aspect3d(6,3,2)
+    lines3d(position$x_bx,position$x_by,position$x_bz,col=rgb(0.5, 0.5, 1, alpha=0.6))
+    points3d(pulse$x_bx, pulse$x_by,pulse$x_bz,col=rgb(0.5, 0.5, 1, alpha=0.6))
+    lines3d(position$x_mx,position$x_my,position$x_mz,col= rgb(1, 0.5, 0.5, alpha=0.6))
+    points3d(pulse$x_mx, pulse$x_my,pulse$x_mz,col= rgb(1, 0.5, 0.5, alpha=0.6))
+    plsvec_x=cos(-pulse$peakdirectionH*pi/180)
+    plsvec_y=sin(-pulse$peakdirectionH*pi/180)
+    plsvec_z=sin(pulse$peakdirectionV*pi/180)
+    gain=0.3
+    for(h in 1:nrow(pulse)){
+      x=c(pulse$x_bx[h],pulse$x_bx[h]+plsvec_x[h]*gain)
+      y=c(pulse$x_by[h],pulse$x_by[h]+plsvec_y[h]*gain)
+      z=c(pulse$x_bz[h],pulse$x_bz[h]+plsvec_z[h]*gain)
+      lines3d(x,y,z,color=rgb(0.5, 0.5, 0.5),alpha=0.6,lwd=2.0)
+    }
+    view3d(theta=0, phi=-90, fov=60, zoom=0.8, scale=par3d("scale"), interactive=TRUE)
+    legend3d("topright", legend = c(head3,'Bat','Moth'), pch = 16, col = c(rgb(1,1,1),rgb(0.5, 0.5, 1),rgb(1, 0.5, 0.5)), cex=1, inset=c(0.02))
+    
+    writeWebGL(dir=getwd(),filename="graphics/scene/scene3D.html",width=1000, height=600)
+    
+  }
+} 
+
+fragmentation<-function(data){
+  if(nrow(data)==1){return (list(data))}
+  index=as.numeric(rownames(data))  
+  j=1
+  after<-numeric()
+  blanklength<-numeric()
+  for(i in 1:(length(index)-1)){
+    if(index[i+1]-index[i]>1){
+      after[j]=i
+      j=j+1
+    }
+  }
+  
+  blank=c(0,after,length(index))
+  for(i in 1:(length(blank)-1)){
+    blanklength[i]=blank[i+1]-blank[i]
+  }
+  start=(blank+1)[-length(blank)]
+  end=start+blanklength-1
+  frag_num=length(start)
+  result=list()
+  for(i in 1:frag_num){
+    frag=data[start[i]:end[i],]
+    result=c(result,list(frag))
+  }
+  
+  return(result)
+}
+
+remove_value<-function(data){
+  for(form in 1:length(data)){
+    for(element in 1:length(data[[form]])){
+      for(coord in 1:length(data[[form]][[element]])){
+        
+        if(nrow(data[[form]][[element]][[coord]])>0){
+          a=data[[form]][[element]][[coord]]
+          data[[form]][[element]][[coord]]=a[-1:-length(a),]
+        }
+        
+      }
+    }
+  }
+  return(data)
+}
+
+add_NA_head_vec<-function(data,idealnum){
+  
+  diff=idealnum-length(data)
+  if(diff<0){
+    print("error:add_NA_head_vec")
+    exit()
+  }
+  
+  for(i in rep(0,length=diff)){
+    data=c(NA,data)
+  }
+  return(data)
+}
+
+add_NA_tail_vec<-function(data,idealnum){
+  
+  diff=idealnum-length(data)
+  if(diff<0){
+    print("error:add_NA_head_vec")
+    exit()
+  }
+  
+  for(i in rep(0,length=diff)){
+    data=c(data,NA)
+  }
+  return(data)
+}
+
+add_NA_head2<-function(data,idealnum){
+  
+  diff=idealnum-nrow(data)
+  if(diff<0){
+    print("error:add_NA_head2")
+    exit()
+  }
+  add=data.frame(matrix(rep(NA,ncol(data)), nrow=1))
+  colnames(add)=colnames(data)
+  for(i in rep(0,length=diff)){
+    data=rbind(add,data)
+  }
+  return(data)
+}
+
+
+add_NA_head<-function(data,idealnum){
+  
+  for(form in 1:length(data)){
+    for(element in 1:length(data[[form]])){
+      for(coord in 1:length(data[[form]][[element]])){
+        data[[form]][[element]][[coord]]=add_NA_head2(data[[form]][[element]][[coord]],idealnum)        
+        
+        
+      }
+    }
+  }
+  return(data)
+}
+
+add_NA_tail2<-function(data,idealnum){
+  
+  diff=idealnum-nrow(data)
+  if(diff<0){
+    print("error:add_NA_tail2")
+    exit()
+  }
+  add=data.frame(matrix(rep(NA,ncol(data)), nrow=1))
+  colnames(add)=colnames(data)
+  for(i in rep(0,length=diff)){
+    data=rbind(data,add)
+  }
+  return(data)
+}
+
+add_NA_tail<-function(data,idealnum){
+  
+  for(form in 1:length(data)){
+    for(element in 1:length(data[[form]])){
+      for(coord in 1:length(data[[form]][[element]])){
+        data[[form]][[element]][[coord]]=add_NA_tail2(data[[form]][[element]][[coord]],idealnum)        
+      }
+    }
+  }
+  return(data)
+}
+
+
+
+length_formatting<-function(data){
+  if(nrow(data$r2$STD$hv)>0){
+    data$r2$STD$hv=rbind(NA,data$r2$STD$hv)
+  }else{
+    data$r2$STD$hv=rbind(data$r2$STD$hv,NA)[-1,]
+  }
+  
+  if(nrow(data$r2$OBJ$hv)>0){
+    data$r2$OBJ$hv=rbind(NA,data$r2$OBJ$hv)
+  }else{
+    data$r2$OBJ$hv=rbind(data$r2$OBJ$hv,NA)[-1,]
+  }
+  
+  if(nrow(data$r2$REF$hv)>0){
+    data$r2$REF$hv=rbind(NA,data$r2$REF$hv)
+  }else{
+    data$r2$REF$hv=rbind(data$r2$REF$hv,NA)[-1,]
+  }
+  
+  
+  if(nrow(data$s$STD$hv)>0){
+    data$s$STD$hv=rbind(NA,data$s$STD$hv)
+  }else{
+    data$s$STD$hv=rbind(data$s$STD$hv,NA)[-1,]
+  }
+  
+  if(nrow(data$s$OBJ$hv)>0){
+    data$s$OBJ$hv=rbind(NA,data$s$OBJ$hv)
+  }else{
+    data$s$OBJ$hv=rbind(data$s$OBJ$hv,NA)[-1,]
+  }
+  
+  if(nrow(data$s$REF$hv)>0){
+    data$s$REF$hv=rbind(NA,data$s$REF$hv)
+  }else{
+    data$s$REF$hv=rbind(data$s$REF$hv,NA)[-1,]
+  }
+  
+  return(data)
+}
+
+defineNAList<-function(){
+  hv=data.frame(H=NA,V=NA,LeadAngle=NA,SideAngle=NA,Longi=NA)
+  xyz=data.frame(x=NA,y=NA,z=NA)
+  coordType <-list(hv=hv,xyz=xyz) #hv,xyz
+  directionType <-list(STD=coordType,OBJ=coordType,REF=coordType) #STD,OBJ,REF
+  nallList<-list(v=directionType,r1=directionType,r2=directionType,s=directionType)#v,r1,r2,s
+  return (nallList)
+}
+
+defineNullList2<-function(){
+  nullList=defineNAList()
+  nullList=remove_value(nullList)
+  return (nullList)
+}
+
+defineNullList<-function(){
+  hv=data.frame(H=NULL,V=NULL,LeadAngle=NULL)
+  xyz=data.frame(x=NULL,y=NULL,z=NULL)
+  coordType <-list(hv=hv,xyz=xyz) #hv,xyz
+  directionType <-list(STD=coordType,OBJ=coordType,REF=coordType) #STD,OBJ,REF
+  nullList<-list(v=directionType,r1=directionType,r2=directionType,s=directionType)#v,r1,r2,s
+  return (nullList)
+}
+
+rbind_List<-function(nullList,add){
+  for(i in 1:length(nullList)){
+    for(j in 1:length(nullList[[i]])){
+      for(k in 1:length(nullList[[i]][[j]])){
+        nullList[[i]][[j]][[k]]<-rbind(nullList[[i]][[j]][[k]],add[[i]][[j]][[k]])
+      }
+    }
+  }
+  return(nullList)
+}
+
+rotationALL_polar<-function(vectorSTD,vectorOBJ, vectorREF,limit1,limit2,limit3,graphics=0){
+  
+  
+  if(nrow(vectorSTD)==0
+     ||nrow(vectorOBJ)==0
+     ||nrow(vectorREF)==0){
+    return(defineNullList2())
+    
+  }
+  
+  
+  colnames(vectorSTD)=c("x","y","z")
+  colnames(vectorOBJ)=c("x","y","z")
+  colnames(vectorREF)=c("x","y","z")
+  
+  vT_polar=direction2(vectorSTD)
+  vS_polar=direction2(vectorOBJ)
+  vF_polar=direction2(vectorREF)
+  
+  
+  #rotating so as to align vectorSTD on x-axis, vectorREF on x-z plane
+  alignSTD=angleForAlign(vectorSTD)
+  rotatedSTD=rotationPolar(vectorSTD,alignSTD$Z,3)#rotating around z-axis
+  rotatedSTD=rotationPolar(rotatedSTD,alignSTD$Y,2)#rotating around y-axis
+  rotatedOBJ=rotationPolar(vectorOBJ,alignSTD$Z,3)
+  rotatedOBJ=rotationPolar(rotatedOBJ,alignSTD$Y,2)
+  rotatedREF=rotationPolar(vectorREF,alignSTD$Z,3)
+  rotatedREF=rotationPolar(rotatedREF,alignSTD$Y,2)
+  
+  rT_polar=direction2(rotatedSTD)
+  rS_polar=direction2(rotatedOBJ)
+  rF_polar=direction2(rotatedREF)
+  
+  #align rotatedREF on x-z plane
+  aX=atan2(rotatedREF$y,rotatedREF$z)
+  rotatedSTD2=rotationPolar(rotatedSTD,aX,1)
+  rotatedOBJ2=rotationPolar(rotatedOBJ,aX,1)
+  rotatedREF2=rotationPolar(rotatedREF,aX,1)
+  
+  rT2_polar=direction2(rotatedSTD2)
+  rS2_polar=direction2(rotatedOBJ2)
+  rF2_polar=direction2(rotatedREF2)
+  
+  #option: angular scaling so as to direct rotatedREF toward 1-0-1
+  aY_REF=atan2(rotatedREF2$z,rotatedREF2$x)
+  
+  scaledSTD=scaling_polar(rotatedSTD2,aY_REF,1)
+  scaledOBJ=scaling_polar(rotatedOBJ2,aY_REF,1)
+  scaledREF=scaling_polar(rotatedREF2,aY_REF,1)
+  
+  sT_polar=direction2(scaledSTD)
+  sS_polar=direction2(scaledOBJ)
+  sF_polar=direction2(scaledREF)
+  
+  if(graphics){
+    if(rgl.cur()!=0){
+      rgl.close()
+    }
+    drawSphere()
+    plot3d(rT2_polar[[2]],xlab="x",ylab="y",zlab="z",xlim = c(-1.2,1.2),ylim = c(-1.2,1.2),zlim = c(-1.2,1.2),add = T,col="blue")
+    plot3d(rS2_polar[[2]],xlab="x",ylab="y",zlab="z",xlim = c(-1.2,1.2),ylim = c(-1.2,1.2),zlim = c(-1.2,1.2),add = T,col="red")
+    plot3d(rF2_polar[[2]],xlab="x",ylab="y",zlab="z",xlim = c(-1.2,1.2),ylim = c(-1.2,1.2),zlim = c(-1.2,1.2),add = T,col="green")
+    bgplot3d({plot.new(); title(format(aY_REF[1]*180/pi,digits = 1))})
+  }
+  
+  
+  v=list(vT_polar,vS_polar,vF_polar)
+  names(v)=c("STD","OBJ","REF")
+  r1=list(rT_polar,rS_polar,rF_polar)
+  names(r1)=c("STD","OBJ","REF")
+  r2=list(rT2_polar,rS2_polar,rF2_polar)
+  names(r2)=c("STD","OBJ","REF")
+  s=list(sT_polar,sS_polar,sF_polar)
+  names(s)=c("STD","OBJ","REF")
+  
+  return(list(v=v,r1=r1,r2=r2,s=s))
+}
+
+LRT<-function(testmodel, controlmodels){
+  result=data.frame(rep(0,1))[,-1]
+  for(i in 1:length(controlmodels)){
+    anova<-anova(testmodel, controlmodels[[i]], test = "Chisq")
+    res=(anova$"Pr(>Chisq)")[2]
+    result=cbind(result, as.data.frame(res))
+    colnames(result)[ncol(result)]=c(paste0("model",i-1))
+  }
+  rownames(result)=c("p in ANOVA(LRT)")
+  return(result)
+}
+
+model_selection_addNLS<-function(x,y,ID,Ex,poly){
+  modellist1=generate.MM_with_intercept(x,y,ID,Ex,poly)
+  modellist2=generate.MM_NLS(x,y,ID,Ex,poly)
+  bestmodel=AICselection(c(modellist1,modellist2[[1]]))
+  
+  
+  frag="lmerModLmerTest"==summary(bestmodel)$"objClass"[1]
+  
+  nullmodel0=generate.nullmodel.MM(x,y,ID,Ex,0)
+  nullmodel1=generate.nullmodel.MM(x,y,ID,Ex,1)
+  LRTresult<-LRT(bestmodel,list(nullmodel0,nullmodel1))
+  
+  if(frag){
+    back<-list(bestmodel,LRTresult)
+  }else{
+    back<-list(bestmodel,LRTresult,modellist2[[2]])
+  }
+  return(back)
+}
+
+model_selection<-function(x,y,ID,Ex,poly,tgtpoly=-1){
+  modellist1=generate.MM_with_intercept(x,y,ID,Ex,poly)
+  bestmodel=AICselection(c(modellist1))
+  
+  if(tgtpoly!=-1){
+    bestmodel=modellist1[[tgtpoly]]
+  }
+  
+  nullmodel0=generate.nullmodel.MM(x,y,Ex,ID,0)
+  nullmodel1=generate.nullmodel.MM(x,y,Ex,ID,1)
+  LRTresult<-LRT(bestmodel,list(nullmodel0,nullmodel1))
+  back<-list(bestmodel,LRTresult)
+  
+  return(back)
+}
+
+ggplot_drawMM<-function(x,y,ID,Ex,poly,xlim,ylim,xlab,ylab,title, xyline=0,transparent=0, drawing=1,tgtpoly=-1){
+  d<-data.frame(x,y,ID,Ex)
+  d_omit<-as.data.frame(d[is.finite(rowSums(d)),])
+  colnames(d_omit)=c("x","y","ID","Ex")
+  x=d_omit$x
+  y=d_omit$y
+  ID=d_omit$ID
+  Ex=d_omit$Ex
+  
+  modeling_result=model_selection(x,y,ID,Ex,poly,tgtpoly)
+  best.model=modeling_result[[1]]
+  print(best.model)
+  print("LRT:")
+  print(modeling_result[[2]])
+  
+  
+  predx=(seq(min(xlim),max(xlim),length=1000))
+  newdata_mix=data.frame("x"=predx, "ID"=(rep(min(ID):max(ID),length=1000)),"Ex"=(rep(min(Ex):max(Ex),length=1000)))
+  predy=predictInterval(merMod = best.model, newdata = newdata_mix,
+                        level = 0.95, n.sims = 1000,
+                        stat = "median", type="linear.prediction",
+                        include.resid.var=F,
+                        which = "fixed") 
+  bestreg=data.frame(predx,predy[,1])
+  confint_up=data.frame(predx,predy[,2])
+  confint_down=data.frame(predx,predy[,3])
+  
+  if(drawing==1){
+    draw<-ggplot() 
+    
+    colnames(confint_up)=colnames(confint_down)=c("x","y")
+    confint<-rbind(confint_up,confint_down[rev(1:nrow(confint_down)),])
+    inarea=which(confint[,1]>=xlim[1]&confint[,1]<=xlim[2]&confint[,2]>=ylim[1]&confint[,2]<=ylim[2])
+    confint=confint[inarea,]
+    draw<-draw+
+      geom_polygon(data=confint,aes(x=confint[,1],y=confint[,2]),fill = rgb(0,0,0, alpha=0.1))
+    
+    
+    draw<-draw+
+      geom_point(data=d_omit, aes(x=x, y=y),
+                 shape = 21, size = 3.5, stroke = 0.3, colour = rgb(0, 0, 0), fill = rgb(0,0,0, alpha=0.5))
+    # draw<-draw+
+    #   geom_hline(yintercept = 0,size=0.5,linetype="solid", colour = rgb(0,0,0),alpha=0.7)
+    # 
+    # hline=data.frame(xlim,c(0,0))
+    # draw<-draw+geom_line(data=hline,aes(x=hline[,1],y=hline[,2]),size=0.5,linetype="solid", colour = rgb(0,0,0),alpha=0.7)
+    # 
+    if(xyline!=0){
+      a=xyline-1
+      xy=data.frame(xlim,a*xlim)
+      
+      # draw<-draw+
+      #   geom_abline(slope = xyline-1, intercept = 0,linetype="solid",size=1.5, colour = hsv(222/360, 60/100, 100/100, alpha=0.9))
+      draw<-draw+geom_line(data=xy,aes(x=xy[,1],y=xy[,2]),size=3, colour = hsv(222/360, 60/100, 100/100, alpha=1))
+      
+    }
+    
+    draw<-draw+geom_line(data=bestreg,aes(x=bestreg[,1],y=bestreg[,2]),colour = hsv(100/360, 100/100, 98/100, alpha=0.9), size=3)
+    
+    
+    if(transparent){
+      draw<-draw+theme(
+        panel.background = element_rect(fill = "transparent",color = NA),
+        panel.grid.minor = element_line(color = NA), 
+        panel.grid.major = element_line(color = NA),
+        plot.background = element_rect(fill = "transparent",color = NA),
+        axis.text= element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank()
+      )
+    }
+    
+    
+    draw<-draw+xlim(xlim)+ylim(ylim)+xlab(xlab)+ylab(ylab)+ggtitle(title)
+    print(draw)
+    ggsave(title, draw, bg = "transparent",dpi=320,width=11.3,height=10)
+  }
+  return(best.model)
+  
+  
+}
+
+ggplot_drawMM_addNLS<-function(x,y,ID,Ex,poly,xlim,ylim,xlab,ylab,title, xyline=0,transparent=0,save=1){
+  d<-data.frame(x,y,ID,Ex)
+  d_omit<-as.data.frame(d[is.finite(rowSums(d)),])
+  colnames(d_omit)=c("x","y","ID","Ex")
+  x=d_omit$x
+  y=d_omit$y
+  ID=d_omit$ID
+  Ex=d_omit$Ex
+  
+  modeling_result=model_selection_addNLS(x,y,ID,Ex,poly)
+  best.model=modeling_result[[1]]
+  print(best.model)
+  
+  print("LRT:")
+  print(modeling_result[[2]])
+  
+  
+  predx=(seq(min(xlim),max(xlim),length=1000))
+  frag="lmerModLmerTest"==summary(best.model)$"objClass"[1]
+  if(frag){
+    newdata_mix=data.frame("x"=predx, "ID"=(rep(min(ID):max(ID),length=1000)),"Ex"=(rep(min(Ex):max(Ex),length=1000)))
+    predy=predictInterval(merMod = best.model, newdata = newdata_mix,
+                          level = 0.95, n.sims = 1000,
+                          stat = "median", type="linear.prediction",
+                          include.resid.var=F,
+                          which = "fixed") 
+    
+  }else{
+    predy=predictCI(predx,best.model,modeling_result[[3]],1000)
+  }
+  bestreg=data.frame(predx,predy[,1])
+  confint_up=data.frame(predx,predy[,2])
+  confint_down=data.frame(predx,predy[,3])
+  
+  draw<-ggplot() 
+  
+  colnames(confint_up)=colnames(confint_down)=c("x","y")
+  confint<-rbind(confint_up,confint_down[rev(1:nrow(confint_down)),])
+  inarea=which(confint[,1]>=xlim[1]&confint[,1]<=xlim[2]&confint[,2]>=ylim[1]&confint[,2]<=ylim[2])
+  confint=confint[inarea,]
+  draw<-draw+
+    geom_polygon(data=confint,aes(x=confint[,1],y=confint[,2]),fill = rgb(0,0,0, alpha=0.1))
+  
+  
+  draw<-draw+
+    geom_point(data=d_omit, aes(x=x, y=y),
+               shape = 21, size = 3.5, stroke = 0.3, colour = rgb(0, 0, 0), fill = rgb(0,0,0, alpha=0.5))
+  # draw<-draw+
+  #   geom_hline(yintercept = 0,size=0.5,linetype="solid", colour = rgb(0,0,0),alpha=0.7)
+  # 
+  # hline=data.frame(xlim,c(0,0))
+  # draw<-draw+geom_line(data=hline,aes(x=hline[,1],y=hline[,2]),size=0.5,linetype="solid", colour = rgb(0,0,0),alpha=0.7)
+  # 
+  if(xyline!=0){
+    a=xyline-1
+    xy=data.frame(xlim,a*xlim)
+    
+    # draw<-draw+
+    #   geom_abline(slope = xyline-1, intercept = 0,linetype="solid",size=1.5, colour = hsv(222/360, 60/100, 100/100, alpha=0.9))
+    draw<-draw+geom_line(data=xy,aes(x=xy[,1],y=xy[,2]), colour = hsv(222/360, 60/100, 100/100, alpha=1),size=3)
+    
+  }
+  
+  draw<-draw+geom_line(data=bestreg,aes(x=bestreg[,1],y=bestreg[,2]),colour = hsv(100/360, 100/100, 98/100, alpha=0.9), size=3)
+  
+  
+  if(transparent){
+    draw<-draw+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA),
+      plot.title = element_blank(),
+      axis.title = element_blank(),
+      axis.text= element_blank()
+    )
+  }
+  
+  # draw<-draw+
+  #   coord_cartesian(xlim =xlim, ylim =ylim)+
+  #   xlab(xlab)+ylab(ylab)+
+  #   ggtitle(title)
+  draw<-draw+xlim(xlim)+ylim(ylim)+xlab(xlab)+ylab(ylab)+ggtitle(title)
+  print(draw)
+  if(save){
+    ggsave(title, draw, bg = "transparent",dpi=320,width=11.3,height=10)
+  }
+  return(best.model)
+  
+}
+
+ggplotter<-function(x,y,xlim,ylim,xlab,ylab,title,transparent=0,p=0, save=0){
+  data=data.frame(x,y)
+  colnames(data)=c("x","y")
+  
+  draw<-ggplot() 
+  draw<-draw+geom_line(data=data,aes(x=x,y=y), size=1.5)
+  
+  if(transparent){
+    draw<-draw+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA),
+      axis.text= element_blank(),
+      plot.title = element_blank(),
+      axis.title = element_blank()
+    )
+  }
+  draw<-draw+coord_cartesian(xlim=xlim,ylim=ylim)+scale_x_continuous(breaks=seq(xlim[1],xlim[2],diff(x_lim)/4))+
+    xlab(xlab)+ylab(ylab)+ggtitle(title)
+  print(draw)
+  if(save){
+    ggsave(title, draw, bg = "transparent",dpi=320,width=11.3,height=5)
+  }
+}
+
+coefficient_fix<-function(best.model){
+  coeff_fix=as.data.frame(t(as.data.frame(fixef(best.model))))
+  coeff=numeric()
+  
+  if(is.null(coeff_fix$'(Intercept)')){
+    value=0
+  }else{
+    value=coeff_fix$'(Intercept)'
+  }
+  coeff=c(coeff,value)
+  
+  if(is.null(coeff_fix$'x')){
+    value=0
+  }else{
+    value=coeff_fix$'x'
+  }
+  coeff=c(coeff,value)
+  
+  if(is.null(coeff_fix$'I(x^2)')){
+    value=0
+  }else{
+    value=coeff_fix$'I(x^2)'
+  }
+  coeff=c(coeff,value)
+  
+  if(is.null(coeff_fix$'I(x^3)')){
+    value=0
+  }else{
+    value=coeff_fix$'I(x^3)'
+  }
+  coeff=c(coeff,value)
+  
+  return(coeff)
+}
+
+generate.nullmodel.MM<-function(x,y,ID,Ex,intercept){
+  d=data.frame(x,y,ID,Ex)
+  d_omit<-as.data.frame(d[is.finite(rowSums(d)),])
+  switch (as.character(intercept),
+          "0" =  lmer(y ~ 0 + (1|ID)+ (1|Ex), data=d_omit)->null.model,
+          "1" =  lmer(y ~ 1 + (1|ID)+ (1|Ex), data=d_omit)->null.model,
+  )
+  return(null.model)
+}
+
+AICselection<-function(modellist){
+  AIC_list=numeric()
+  print("AIC List")
+  for(i in 1:length(modellist)){
+    AIC_list=c(AIC_list,AIC(modellist[[i]]))
+    
+    print(paste(round(AIC(modellist[[i]]),3),": ",
+                as.character(formula(modellist[[i]])[2]), ", ",
+                as.character(formula(modellist[[i]])[3])))
+    
+  }
+  
+  index=which(AIC_list==min(AIC_list))
+  lowestAIC.model=modellist[[index]]
+  return(lowestAIC.model)
+}
+
+generate.MM_with_intercept<-function(x,y,ID,Ex, poly){
+  
+  d=data.frame(x,y,ID,Ex)
+  d_omit<-as.data.frame(d[is.finite(rowSums(d)),])
+  options(na.action="na.fail")
+  switch (as.character(poly),
+          "0" =  lmer(y ~ 1 + (1|Ex) + (1|ID), data=d_omit)->model,
+          "1" =  lmer(y ~ x + (1|Ex) + (1|ID), data=d_omit)->model,
+          "2" =  lmer(y ~ x+I(x^2) + (1|Ex) + (1|ID), data=d_omit)->model,
+          "3" =  lmer(y ~ x+I(x^2)+I(x^3) + (1|Ex) + (1|ID), data=d_omit)->model,
+          stop("Acceptable poly value is Only 0, 1, 2 or 3")
+  )
+  
+  all.model<-dredge(model,rank="AIC")
+  sort.model<-all.model[order(as.numeric(rownames(all.model))),]
+  print(sort.model)
+  
+  modellist<-get.models(sort.model,subset = 1:nrow(all.model))
+  options(na.action="na.omit")
+  return(modellist)
+}
+
+generate.MM_without_intercept<-function(x,y,ID, poly){
+  d=data.frame(x,y,ID)
+  d_omit<-as.data.frame(d[is.finite(rowSums(d)),])
+  options(na.action="na.fail")
+  switch (as.character(poly),
+          "0" =  lmer(y ~ 0 + (1|ID), data=d_omit)->model,
+          "1" =  lmer(y ~ 0 + x + (1|ID), data=d_omit)->model,
+          "2" =  lmer(y ~ 0 + x+I(x^2) + (1|ID), data=d_omit)->model,
+          "3" =  lmer(y ~ 0 + x+I(x^2)+I(x^3) + (1|ID), data=d_omit)->model,
+          stop("Acceptable poly value is Only 0, 1, 2 or 3")
+  )
+  
+  all.model<-dredge(model,rank="AIC")
+  sort.model<-all.model[order(as.numeric(rownames(all.model))),]
+  print(sort.model)
+  
+  modellist<-get.models(all.model,subset = 1:nrow(all.model))
+  options(na.action="na.omit")
+  return(modellist)
+}
+
+generate.MM_NLS<-function(x,y,ID,Ex,poly){
+  d=data.frame(x,y,ID,Ex)
+  d_omit<-as.data.frame(d[is.finite(rowSums(d)),])
+  
+  # f0 <- deriv(~a/(x), namevec = c("a"), function.arg = c("x","a","b"))# set 3 arguments for commonality
+  # model_0 <- nlmer(y~f0(x,a)~(a|ID)+(a|Ex), start = c(a = 0), data=d_omit, na.action = "na.omit")
+  # model_0 <- update(model_0, control=nlmerControl(optimizer="nloptwrap"), # Default optimizer
+  #                   nAGQ=0L)
+  f1 <- deriv(~a/(x)+b, namevec = c("a", "b"), function.arg = c("x","a","b"))
+  model_1 <- nlmer(y~f1(x,a,b)~(a+b|ID)+(a+b|Ex), start = c(a = 0, b = 0), data=d_omit, na.action = "na.omit")
+  model_1 <- update(model_1, control=nlmerControl(optimizer="nloptwrap"), # Default optimizer
+                    nAGQ=0L)
+  
+  print(fixed.effects(model_1))
+  return(list(model_1,f1))
+}
+
+predictCI<-function(predx,model,f,n){
+  Mean <- fixef(model)
+  Var <- vcov(model)
+  
+  ###### Sampling from a probability distribution of parameters ######
+  set.seed(1)
+  samp <- rmvnorm(n, Mean, as.matrix(Var)) 
+  
+  ###### Repeating the model building and predictions ######
+  samp_pred_array <- NULL
+  for (i in 1:n) {
+    a=numeric()
+    for(j in 1:ncol(samp)){
+      a <-c(a, samp[i,j]) 
+    }
+    
+    if(length(a)<2){a=c(a,0)}
+    samp_pred <- mapply(f,predx, a[1],a[2]) 
+    samp_pred_array <- rbind(samp_pred_array, samp_pred)
+  }
+  
+  if(length(Mean)<2){Mean=c(Mean,0)}
+  regression <- mapply(f,predx, Mean[1],Mean[2]) 
+  
+  CI <- apply(samp_pred_array, MARGIN=2, function(x) quantile(x, probs=c(0.025, 0.975)))
+  return(data.frame(regression,t(CI)))
+}
+
+multi_distribution_comp<-function(x,y,ID,Ex){
+  comp0_bool=data.frame(rep(0,length(y)))[,-1]
+  comp1_bool=data.frame(rep(0,length(y)))[,-1]
+  comp0_value=data.frame(rep(0,length(y)))[,-1]
+  comp1_value=data.frame(rep(0,length(y)))[,-1]
+  for(s in 1:length(y)){
+    anova0_bool=numeric()
+    anova1_bool=numeric()
+    anova0_value=numeric()
+    anova1_value=numeric()
+    for(t in 1:length(y)){
+      print(paste(paste("s:",s),paste("t:",t)))
+      
+      if(t==s){
+        anova0_bool=c(anova0_bool,NA)
+        anova1_bool=c(anova1_bool,NA)
+        anova0_value=c(anova0_value,NA)
+        anova1_value=c(anova1_value,NA)
+      }else{
+        Y=y[[t]]-y[[s]]
+        anovares=model_selection(x,Y,ID,Ex,1)[[2]]
+        
+        #test
+        siglevel=0.05/(length(y)*(length(y)-1)/2)
+        print(paste("alpha=",siglevel))
+        anova0_bool=c(anova0_bool,anovares[,1]<siglevel)
+        anova1_bool=c(anova1_bool,anovares[,2]<siglevel)
+        anova0_value=c(anova0_value,anovares[,1])
+        anova1_value=c(anova1_value,anovares[,2])
+      }
+      
+    }
+    comp0_bool=cbind(comp0_bool, as.data.frame(anova0_bool))
+    comp1_bool=cbind(comp1_bool, as.data.frame(anova1_bool))
+    comp0_value=cbind(comp0_value, as.data.frame(anova0_value))
+    comp1_value=cbind(comp1_value, as.data.frame(anova1_value))
+    colnames(comp0_bool)[length(comp0_bool)]=c(as.character(s))
+    colnames(comp1_bool)[length(comp1_bool)]=c(as.character(s))
+    colnames(comp0_value)[length(comp0_value)]=c(as.character(s))
+    colnames(comp1_value)[length(comp1_value)]=c(as.character(s))
+    
+  }
+  
+  print("multicomp: anova0")
+  print(comp0_value)
+  print(comp0_bool)
+  print("multicomp: anova1")
+  print(comp1_value)
+  print(comp1_bool)
+  
+  return (list(simtest_bool=comp0_bool,
+               simtest_value=comp0_value,
+               cortest_bool=comp1_bool,
+               cortest_value=comp1_value))
+}
+
+multi_distribution_comp2<-function(data,ID,Ex){
+  comp0_bool=data.frame(rep(0,length(data)))[,-1]
+  comp0_value=data.frame(rep(0,length(data)))[,-1]
+  for(s in 1:length(data)){
+    anova0_bool=numeric()
+    anova0_value=numeric()
+    for(t in 1:length(data)){
+      print(paste(paste("s:",s),paste("t:",t)))
+      
+      if(t==s){
+        anova0_bool=c(anova0_bool,NA)
+        anova0_value=c(anova0_value,NA)
+      }else{
+        model1=model_selection(data[[t]][,1],data[[t]][,2],ID,Ex,1)[[1]]
+        model2=model_selection(data[[s]][,1],data[[s]][,2],ID,Ex,1)[[1]]
+        anovares=LRT(model1,list(model2))
+        #test
+        siglevel=0.05/(length(data)*(length(data)-1)/2)
+        print(paste("alpha=",siglevel))
+        anova0_bool=c(anova0_bool,anovares[,1]<siglevel)
+        anova0_value=c(anova0_value,anovares[,1])
+      }
+      
+    }
+    comp0_bool=cbind(comp0_bool, as.data.frame(anova0_bool))
+    comp0_value=cbind(comp0_value, as.data.frame(anova0_value))
+    colnames(comp0_bool)[length(comp0_bool)]=c(as.character(s))
+    colnames(comp0_value)[length(comp0_value)]=c(as.character(s))
+  }
+  
+  print("multicomp: anova0")
+  print(comp0_value)
+  print(comp0_bool)
+  
+  
+  return (list(simtest_bool=comp0_bool,
+               simtest_value=comp0_value))
+}
+
+multi_plot_modeling_comp<-function(x,y,ID,Ex,title,xlimit=NA,ylimit=NA){
+  res=multi_distribution_comp(x,y,ID,Ex)
+  multi_plot_modeling(x,y,ID,Ex,title,xlimit,ylimit,"backON")
+  return(res)  
+}
+
+multi_plot_modeling_comp2<-function(data,ID,Ex,title,xlimit=NA,ylimit=NA){
+  res=multi_distribution_comp2(data,ID,Ex)
+  multi_plot_modeling2(data,ID,Ex,title,xlimit,ylimit,"backON")
+  return(res)  
+}
+
+multi_plot_modeling<-function(x,y,ID,Ex,title,xlimit=NA,ylimit=NA,backOFF="backOFF"){
+  
+  
+  yvalue=numeric()
+  model_list=list()
+  
+  sim_anova0=numeric()
+  sim_anova1=numeric()
+  for(i in 1:length(y)){
+    print(as.character(i))
+    
+    modeling_result=model_selection(x,y[[i]],ID,Ex,1)
+    best.model=modeling_result[[1]]
+    print(best.model)
+    print(fixed.effects(best.model))
+    print("LRT:")
+    print(modeling_result[[2]])
+    anovares=modeling_result[[2]]
+    sim_anova0=c(sim_anova0,anovares[,1]<0.05)  
+    sim_anova1=c(sim_anova1,anovares[,2]<0.05)      
+    
+    
+    
+    predx=(seq(min(x),max(x),length=1000))
+    frag="lmerModLmerTest"==summary(best.model)$"objClass"[1]
+    if(frag){
+      newdata_mix=data.frame("x"=predx, "ID"=(rep(min(ID):max(ID),length=1000)),"Ex"=(rep(min(Ex):max(Ex),length=1000)))
+      predy=predictInterval(merMod = best.model, newdata = newdata_mix,
+                            level = 0.95, n.sims = 1000,
+                            stat = "median", type="linear.prediction",
+                            include.resid.var=F,
+                            which = "fixed") 
+      
+    }else{
+      predy=predictCI(predx,best.model,modeling_result[[3]],1000)
+    }
+    
+    
+    
+    
+    pred=data.frame(predx,predy[,1])
+    model_list=c(model_list, list(pred))
+    yvalue=c(yvalue,pred[,2])
+  }
+  
+  print("eachReg: anova0")
+  print(sim_anova0)
+  print("eachReg: anova1")
+  print(sim_anova1)
+  
+  
+  
+  xvalue=c(0,800)
+  
+  if(all(!is.na(xlimit))){
+    xvalue=xlimit 
+  }
+  if(all(!is.na(ylimit))){
+    yvalue=ylimit 
+  }
+  
+  col=hsv(0,0,0)
+  col1=hsv(0, 60/100, 0/4)
+  col2=hsv(0, 60/100, 1/4)
+  col3=hsv(0, 60/100, 2/4)
+  col4=hsv(0, 60/100, 3/4)
+  col5=hsv(0, 60/100, 4/4)
+  col6=hsv(0.5, 60/100, 4/4)
+  
+  
+  colset=c(col,col,col,col,
+           col,col,col,col)
+  # colset[i]=rgb(1, 0.35, 0.4)
+  
+  
+  p<-ggplot()
+  p<-p+geom_line(data=model_list[[1]],aes(x=model_list[[1]][,1],y=model_list[[1]][,2]),colour = colset[1],size=1)
+  p<-p+geom_line(data=model_list[[2]],aes(x=model_list[[2]][,1],y=model_list[[2]][,2]),colour = colset[2],size=1)
+  p<-p+geom_line(data=model_list[[3]],aes(x=model_list[[3]][,1],y=model_list[[3]][,2]),colour = colset[3],size=1)
+  p<-p+geom_line(data=model_list[[4]],aes(x=model_list[[4]][,1],y=model_list[[4]][,2]),colour = colset[4],size=1)
+  p<-p+geom_line(data=model_list[[5]],aes(x=model_list[[5]][,1],y=model_list[[5]][,2]),colour = colset[5],size=1)
+  p<-p+geom_line(data=model_list[[6]],aes(x=model_list[[6]][,1],y=model_list[[6]][,2]),colour = colset[6],size=1)
+  p<-p+geom_line(data=model_list[[7]],aes(x=model_list[[7]][,1],y=model_list[[7]][,2]),colour = colset[7],size=1)
+  p<-p+geom_line(data=model_list[[8]],aes(x=model_list[[8]][,1],y=model_list[[8]][,2]),colour = colset[8],size=1)
+  
+  num=c(1:8)
+  labx=numeric()
+  laby=numeric()
+  for(i in 1:8){
+    length=nrow(model_list[[i]])
+    labx=c(labx,model_list[[i]][length,1])
+    laby=c(laby,model_list[[i]][length,2])
+  }
+  
+  label_posit<-data.frame(labx+3,laby)
+  # text<-geom_text(data=label_posit,
+  #                  aes(x=label_posit[,1], y=label_posit[,2], label=num),cex=7,fontface = "bold")
+  # 
+  # p<-p+text
+  if(backOFF=="backOFF"){
+    p<-p+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA),
+      axis.text= element_blank(),
+      plot.title = element_blank()
+      # axis.ticks= element_blank()#
+    )
+  }
+  # yrange=abs(max(yvalue)-min(yvalue))
+  # p<-p+geom_hline(yintercept = 0,size=0.3, colour = rgb(0,0,0),alpha=0.5)+
+  #   geom_hline(yintercept = -1,size=0.3, colour = rgb(0,0,0),alpha=0.5)+
+  #   geom_vline(xintercept = 0,size=0.5, colour = rgb(0,0,0))
+  p<-p + scale_y_continuous(breaks=c(0,-1))
+  p<-p+xlim(xvalue[1],xvalue[2])+ylim(min(yvalue),max(yvalue))
+  p<-p + xlab("Angular Velocity")+ylab("Sighting Error")
+  print(p)
+  
+  if(title!=""){
+    ggsave(title, p, bg = "transparent",dpi=320,width=11.5,height=10)
+  }
+  
+  
+}
+
+multi_plot_modeling2<-function(data,ID,Ex,title,xlimit=NA,ylimit=NA,backOFF="backOFF"){
+  
+  
+  yvalue=numeric()
+  model_list=list()
+  
+  sim_anova0=numeric()
+  sim_anova1=numeric()
+  for(i in 1:length(data)){
+    print(as.character(i))
+    
+    modeling_result=model_selection(data[[i]][,1],data[[i]][,2],ID,Ex,1)
+    best.model=modeling_result[[1]]
+    print(best.model)
+    print(fixed.effects(best.model))
+    print("LRT:")
+    print(modeling_result[[2]])
+    anovares=modeling_result[[2]]
+    sim_anova0=c(sim_anova0,anovares[,1]<0.05)  
+    sim_anova1=c(sim_anova1,anovares[,2]<0.05)      
+    
+    
+    
+    predx=(seq(min(na.omit(data[[i]][,1])),max(na.omit(data[[i]][,1])),length=1000))
+    frag="lmerModLmerTest"==summary(best.model)$"objClass"[1]
+    if(frag){
+      newdata_mix=data.frame("x"=predx, "ID"=(rep(min(ID):max(ID),length=1000)),"Ex"=(rep(min(Ex):max(Ex),length=1000)))
+      predy=predictInterval(merMod = best.model, newdata = newdata_mix,
+                            level = 0.95, n.sims = 1000,
+                            stat = "median", type="linear.prediction",
+                            include.resid.var=F,
+                            which = "fixed") 
+      
+    }else{
+      predy=predictCI(predx,best.model,modeling_result[[3]],1000)
+    }
+    
+    
+    
+    
+    pred=data.frame(predx,predy[,1])
+    model_list=c(model_list, list(pred))
+    yvalue=c(yvalue,pred[,2])
+  }
+  
+  print("eachReg: anova0")
+  print(sim_anova0)
+  print("eachReg: anova1")
+  print(sim_anova1)
+  
+  
+  
+  xvalue=c(0,800)
+  
+  if(all(!is.na(xlimit))){
+    xvalue=xlimit 
+  }
+  if(all(!is.na(ylimit))){
+    yvalue=ylimit 
+  }
+  
+  col=hsv(0,0,0)
+  col1=hsv(0, 60/100, 0/4)
+  col2=hsv(0, 60/100, 1/4)
+  col3=hsv(0, 60/100, 2/4)
+  col4=hsv(0, 60/100, 3/4)
+  col5=hsv(0, 60/100, 4/4)
+  col6=hsv(0.5, 60/100, 4/4)
+  
+  
+  colset=c(col,col,col,col,
+           col,col,col,col5)
+  # colset[i]=rgb(1, 0.35, 0.4)
+  
+  
+  p<-ggplot()
+  p<-p+geom_line(data=model_list[[1]],aes(x=model_list[[1]][,1],y=model_list[[1]][,2]),colour = colset[1],size=1)
+  p<-p+geom_line(data=model_list[[2]],aes(x=model_list[[2]][,1],y=model_list[[2]][,2]),colour = colset[2],size=1)
+  p<-p+geom_line(data=model_list[[3]],aes(x=model_list[[3]][,1],y=model_list[[3]][,2]),colour = colset[3],size=1)
+  p<-p+geom_line(data=model_list[[4]],aes(x=model_list[[4]][,1],y=model_list[[4]][,2]),colour = colset[4],size=1)
+  p<-p+geom_line(data=model_list[[5]],aes(x=model_list[[5]][,1],y=model_list[[5]][,2]),colour = colset[5],size=1)
+  p<-p+geom_line(data=model_list[[6]],aes(x=model_list[[6]][,1],y=model_list[[6]][,2]),colour = colset[6],size=1)
+  p<-p+geom_line(data=model_list[[7]],aes(x=model_list[[7]][,1],y=model_list[[7]][,2]),colour = colset[7],size=1)
+  p<-p+geom_line(data=model_list[[8]],aes(x=model_list[[8]][,1],y=model_list[[8]][,2]),colour = colset[8],size=1)
+  
+  num=c(1:8)
+  labx=numeric()
+  laby=numeric()
+  for(i in 1:8){
+    length=nrow(model_list[[i]])
+    labx=c(labx,model_list[[i]][length,1])
+    laby=c(laby,model_list[[i]][length,2])
+  }
+  
+  label_posit<-data.frame(labx+3,laby)
+  # text<-geom_text(data=label_posit,
+  #                  aes(x=label_posit[,1], y=label_posit[,2], label=num),cex=7,fontface = "bold")
+  # 
+  # p<-p+text
+  if(backOFF=="backOFF"){
+    p<-p+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA),
+      axis.text= element_blank(),
+      plot.title = element_blank()
+      # axis.ticks= element_blank()#
+    )
+  }
+  # yrange=abs(max(yvalue)-min(yvalue))
+  # p<-p+geom_hline(yintercept = 0,size=0.3, colour = rgb(0,0,0),alpha=0.5)+
+  #   geom_hline(yintercept = -1,size=0.3, colour = rgb(0,0,0),alpha=0.5)+
+  #   geom_vline(xintercept = 0,size=0.5, colour = rgb(0,0,0))
+  p<-p + scale_y_continuous(breaks=c(0,-1))
+  p<-p+xlim(xvalue[1],xvalue[2])+ylim(min(yvalue),max(yvalue))
+  p<-p + xlab("Angular Velocity")+ylab("Sighting Error")
+  print(p)
+  
+  if(title!=""){
+    ggsave(title, p, bg = "transparent",dpi=320,width=11.5,height=10)
+  }
+  
+  
+}
+
+linear_pred<-function(step1_set,step2_set,deltatime_set,leadtime_set){
+  lengthcheck=all(sapply(list(nrow(step1_set),
+                              nrow(step2_set),
+                              length(deltatime_set),
+                              length(leadtime_set)), 
+                         function(x) x == length(leadtime_set)))
+  if(!lengthcheck){
+    print("length not matched")
+    break()
+  }
+  
+  d=na.omit(data.frame(step1_set=step1_set,step2_set=step2_set,deltatime_set,leadtime_set))
+  step1_set=data.frame(d$step1_set.x,d$step1_set.y,d$step1_set.z)
+  step2_set=data.frame(d$step2_set.x,d$step2_set.y,d$step2_set.z)
+  deltatime_set=d$deltatime_set
+  leadtime_set=d$leadtime_set
+  
+  result=data.frame(matrix(rep(NA,3), nrow=1))[numeric(0), ]
+  colnames(result)=c("x","y","z")
+  
+  if(nrow(step1_set)==0){
+    return(result)
+  }
+  
+  
+  
+  for(i in 1:nrow(step1_set)){
+    
+    step1=as.numeric(step1_set[i,])
+    step2=as.numeric(step2_set[i,])
+    deltatime=deltatime_set[i]
+    leadtime=leadtime_set[i]
+    
+    x_delta=step2-step1
+    v=x_delta/deltatime
+    pred_d=step2+v*leadtime
+    result=rbind(result,t(as.data.frame(pred_d)))
+  }
+  colnames(result)=c("x","y","z")
+  rownames(result)=c(1:nrow(step1_set))
+  
+  mag=sqrt(result$x^2+result$y^2+result$z^2)
+  return(result) 
+}
+
+absTGTV_pred_core<-function(step1,step2,TGTV,deltatime,lead_gain,lead_offset=0){
+  step1=as.numeric(step1)
+  step2=as.numeric(step2)
+  TGTV=as.numeric(TGTV)
+  deltatime=as.numeric(deltatime)
+  lead_gain=as.numeric(lead_gain)
+  lead_offset=as.numeric(lead_offset)
+  
+  n=cross(step2-TGTV,step2)
+  av=angle_2vec(step1,step2)*pi/180/deltatime
+  leadang=av*lead_gain+lead_offset
+  step3=rotationMatrix(leadang,n[1],n[2],n[3])[1:3,1:3]%*%step2
+  step3_mag=sqrt(step3[1,1]^2+step3[2,1]^2+step3[3,1]^2)
+  step3_dir=step3/step3_mag
+  return(step3_dir)
+}
+
+
+angular_pred_core<-function(step1,step2,deltatime,lead_gain,lead_offset=0){
+  step1=as.numeric(step1)
+  step2=as.numeric(step2)
+  deltatime=as.numeric(deltatime)
+  lead_gain=as.numeric(lead_gain)
+  lead_offset=as.numeric(lead_offset)
+  
+  n=cross(step1,step2)
+  av=angle_2vec(step1,step2)*pi/180/deltatime
+  leadang=av*lead_gain+lead_offset
+  step3=rotationMatrix(leadang,n[1],n[2],n[3])[1:3,1:3]%*%step2
+  step3_mag=sqrt(step3[1,1]^2+step3[2,1]^2+step3[3,1]^2)
+  step3_dir=step3/step3_mag
+  return(step3_dir)
+}
+
+
+angular_pred<-function(step1_set,step2_set,deltatime_set,leadtime_set){
+  
+  lengthcheck=all(sapply(list(nrow(step1_set),
+                              nrow(step2_set),
+                              length(deltatime_set),
+                              length(leadtime_set)), 
+                         function(x) x == length(leadtime_set)))
+  if(!lengthcheck){
+    print("length not matched")
+    break()
+  }
+  d=na.omit(data.frame(step1_set=step1_set,step2_set=step2_set,deltatime_set,leadtime_set))
+  step1_set=data.frame(x=d$step1_set.x,y=d$step1_set.y,z=d$step1_set.z)
+  step2_set=data.frame(x=d$step2_set.x,y=d$step2_set.y,z=d$step2_set.z)
+  deltatime_set=d$deltatime_set
+  leadtime_set=d$leadtime_set
+  
+  result=data.frame(matrix(rep(NA,3), nrow=1))[numeric(0), ]
+  colnames(result)=c("x","y","z")
+  
+  if(nrow(step1_set)==0){
+    return(result)
+  }
+  
+  for(i in 1:nrow(step1_set)){
+    
+    step3_dir=angular_pred_core(step1_set[i,],step2_set[i,],deltatime_set[i],leadtime_set[i])
+    # step1=as.numeric(step1_set[i,])
+    # step2=as.numeric(step2_set[i,])
+    # deltatime=deltatime_set[i]
+    # leadtime=leadtime_set[i]
+    # 
+    # n=cross(step1,step2)
+    # av=angle_2vec(step1,step2)*pi/180/deltatime
+    # leadang=av*leadtime
+    # step3=rotationMatrix(leadang,n[1],n[2],n[3])[1:3,1:3]%*%step2
+    # step3_mag=sqrt(step3[1,1]^2+step3[2,1]^2+step3[3,1]^2)
+    result=rbind(result,t(as.data.frame(step3_dir)))
+  }
+  rownames(result)=c(1:nrow(step1_set))
+  # result=rbind(c(NA),result,c(NA))
+  return(result) 
+}
+
+omega<-function(step1_set,step2_set,deltatime_set){
+  
+  lengthcheck=all(sapply(list(nrow(step1_set),
+                              nrow(step2_set),
+                              length(deltatime_set)), 
+                         function(x) x == length(deltatime_set)))
+  if(!lengthcheck){
+    print("length not matched")
+    break()
+  }
+  result=data.frame(matrix(rep(NA,3), nrow=1))[numeric(0), ]
+  colnames(result)=c("x","y","z")
+  
+  if(nrow(step1_set)==0){
+    return(result)
+  }
+  
+  for(i in 1:nrow(step1_set)){
+    
+    step1=as.numeric(step1_set[i,])
+    step2=as.numeric(step2_set[i,])
+    deltatime=deltatime_set[i]
+    
+    n=cross(step1,step2)
+    av=angle_2vec(step1,step2)*pi/180/deltatime
+    w=av*n/sqrt(n[1]^2+n[2]^2+n[3]^2)
+    result=rbind(result,t(as.data.frame(w)))
+  }
+  colnames(result)=c("x","y","z")
+  rownames(result)=c(1:nrow(step1_set))
+  return(result) 
+}
+
+turnAcc<-function(step1_set,step2_set,deltatime_set,basevector){
+  
+  lengthcheck=all(sapply(list(nrow(step1_set),
+                              nrow(step2_set),
+                              length(deltatime_set),
+                              nrow(basevector)), 
+                         function(x) x == nrow(basevector)))
+  if(!lengthcheck){
+    print("length not matched")
+    break()
+  }
+  LAresult=data.frame(matrix(rep(NA,3), nrow=1))[numeric(0), ]
+  AVresult=data.frame(matrix(rep(NA,3), nrow=1))[numeric(0), ]
+  
+  if(nrow(step1_set)==0){
+    colnames(LAresult)=colnames(AVresult)=c("x","y","z")
+    return(list(LAresult,AVresult))
+  }
+  
+  for(i in 1:nrow(step1_set)){
+    
+    step1=as.numeric(step1_set[i,])
+    step2=as.numeric(step2_set[i,])
+    deltatime=deltatime_set[i]
+    base=as.numeric(basevector[i,])
+    
+    n=cross(step1,step2)
+    av=angle_2vec(step1,step2)*pi/180/deltatime
+    w=av*n/sqrt(n[1]^2+n[2]^2+n[3]^2)
+    LA=cross(w,base)
+    LAresult=rbind(LAresult,t(as.data.frame(LA)))
+    AVresult=rbind(AVresult,t(as.data.frame(w)))
+  }
+  colnames(LAresult)=colnames(AVresult)=c("x","y","z")
+  rownames(LAresult)=rownames(AVresult)=c(1:nrow(step1_set))
+  return(list(LAresult,AVresult))
+}
+
+angle_2vec<-function(a,b){
+  mag_a=sqrt(a[1]^2+a[2]^2+a[3]^2)
+  mag_b=sqrt(b[1]^2+b[2]^2+b[3]^2)
+  rad=acos(dot(as.matrix(a),as.matrix(b))/(mag_a*mag_b))
+  deg=rad*180/pi
+  return(as.numeric(deg))
+}
+
+angle_2vec_DF<-function(s_a,s_b=as.data.frame(cbind(rep(1,length=nrow(s_a)),
+                                                    rep(0,length=nrow(s_a)),
+                                                    rep(0,length=nrow(s_a))))){
+  res=vector()
+  i=1
+  while(i<=nrow(s_a)){
+    a=s_a[i,]
+    b=s_b[i,]
+    if(is.na(a[1]+a[2]+a[3]+b[1]+b[2]+b[3])){
+      res=c(res,NA)
+      i=i+1
+      next()
+    }
+    mag_a=sqrt(a[1]^2+a[2]^2+a[3]^2)
+    mag_b=sqrt(b[1]^2+b[2]^2+b[3]^2)
+    
+    outer=cross(as.matrix(a),as.matrix(b))
+    inner=dot(as.matrix(a),as.matrix(b))
+    rad=atan2(sqrt(outer[,1]^2+outer[,2]^2+outer[,3]^2),inner)
+    
+    # rad=acos(dot(as.matrix(a),as.matrix(b))/(mag_a*mag_b))
+    deg=rad*180/pi
+    res=c(res,as.numeric(deg))
+    i=i+1
+  }
+  return(res)
+}
+
+func_X<-function(t,func,obj){
+  na.index=which(is.na(t))
+  t[na.index]=0
+  x <- predict(func[[obj*3+1]],t, deriv = 0)$y
+  y <- predict(func[[obj*3+2]],t, deriv = 0)$y
+  z <- predict(func[[obj*3+3]],t, deriv = 0)$y
+  X=data.frame(x,y,z)
+  X[na.index,]=NA
+  return(X)
+}
+
+func_R2<-function(t,func){
+  b <- func_X(t, func, 0)
+  m <- func_X(t, func, 1)
+  R=m-b
+  colnames(R)=c("Rx","Ry","Rz")
+  return(R)
+} 
+
+func_R<-function(t,func){
+  bx <- predict(func[[1]],t, deriv = 0)$y
+  by <- predict(func[[2]],t, deriv = 0)$y
+  bz <- predict(func[[3]],t, deriv = 0)$y
+  
+  mx <- predict(func[[4]],t, deriv = 0)$y
+  my <- predict(func[[5]],t, deriv = 0)$y
+  mz <- predict(func[[6]],t, deriv = 0)$y
+  
+  Rx=mx-bx
+  Ry=my-by
+  Rz=mz-bz
+  
+  return(data.frame(Rx,Ry,Rz))
+} 
+
+Three_d_plot<-function(x,y,ref,limit,range_x,range_y,range_z, model1,model2,title){
+  if(rgl.cur()!=0){
+    rgl.close()
+  }  
+  model1=c(model1,0,0)
+  model2=c(model2,0,0)
+  theta=seq(0,2*pi, by=pi/100)
+  circlex=cos(theta)*limit
+  circley=sin(theta)*limit
+  circlez=rep(0,length=length(theta))
+  longi=x
+  lati=-y
+  range=which(lati>range_x[1]&lati<range_x[2]&longi>range_y[1]&longi<range_y[2]&ref>range_z[1]&ref<range_z[2])
+  plot3d(-lati[range], longi[range],ref[range],box=F,axes=F,xlab="", ylab="", zlab='',alpha=0.5,xlim=range_x,ylim=range_y,zlim=range_z)
+  axes3d(labels=F,tick=F,box=F)
+  par3d(windowRect = c(0, 0, 500, 500))
+  aspect3d(1,1,1)
+  lines3d(circlex,circley,circlez,col = rgb(0,0,0),alpha=0.4)
+  segments3d(c(-limit,limit,0,0),c(0,0,limit,-limit),c(0,0,0,0),col = rgb(0,0,0),alpha=0.4)
+  segments3d(c(-limit,limit,0,0),c(0,0,limit,-limit),c(range_z[2],range_z[2],range_z[2],range_z[2]), col = rgb(0,0,0),alpha=0.4)
+  segments3d(c(0,0),c(0,0),c(0,range_z[2]),col = rgb(0,0,0),alpha=0.4)
+  
+  segments3d(c(0,0),c(0,range_z[2]),c(0,range_z[2]), lwd=3,col=hsv(222/360, 60/100, 100/100, alpha=0.9))
+  segments3d(c(model2[1],range_z[2]*model2[2]+model2[1]),c(model1[1],range_z[2]*model1[2]+model1[1]),c(0,range_z[2]),lwd=3,col = hsv(100/360, 100/100, 98/100, alpha=0.9))
+  
+  
+  view3d(theta=-120, phi=30, fov=20, zoom=0.8, scale=par3d("scale"), interactive=TRUE)
+  rgl.snapshot(title)
+  
+  #for Blender
+  scale_x=range_x[2]-range_x[1]
+  scale_y=range_y[2]-range_y[1]
+  scale_z=range_z[2]-range_z[1]
+  blender=cbind(-lati[range]/scale_x, longi[range]/scale_y,ref[range]/scale_z)
+  pulse_blender=na.omit(blender)
+  # write.csv(cbind(c(1:nrow(pulse_blender)),pulse_blender),
+  #           "pulse_blender.csv",row.names=F, col.names = F)
+  
+}
+
+smoothed_position<-function(positiondata,func, output_fps){
+  
+  TIME=seq(min(positiondata$time), max(positiondata$time), by = 1/output_fps)
+  result=data.frame(TIME)
+  for(funcindex in 1:6){
+    predicted <- predict(func[[funcindex]],TIME, deriv = 0)$y
+    result=cbind(result,predicted)
+  }
+  
+  colnames(result)=c("time", "x_bx","x_by","x_bz","x_mx","x_my","x_mz")
+  
+  # write.csv(result,"position_GL.csv",row.names=F, col.names = F)
+  return(result)
+}
+
+add_delta_AV<-function(src,LOS,time,index1,index2,name){
+  deltaT=time[index1]-time[index2]
+  theta=angle_2vec_DF(LOS[index1,],LOS[index2,])
+  av_mag_d=theta/deltaT/180*pi
+  av_mag_d=as.data.frame(av_mag_d)
+  colnames(av_mag_d)=name
+  src=cbind(src,av_mag_d)
+  return(src)
+}
+
+
+add_TGTshift_sim2<-function(src,all,interval2,func){
+  intvl=src$time[src$curr]-src$time[src$last]
+  interval_i=na.omit(intvl)[1]
+  baseTime=(src$time[src$last])
+  nextTime_a=(src$time[src$curr])
+  nextTime_i=(baseTime+interval_i)
+  
+  baseLOS=func_R2(baseTime,func)
+  nextLOS_i=func_R2(nextTime_i,func)
+  nextLOS_a=func_R2(nextTime_a,func)
+  
+  baseLOS[which(nextTime_i>0),]=c(NA,NA,NA)
+  nextLOS_i[which(nextTime_i>0),]=c(NA,NA,NA)
+  nextLOS_a[which(nextTime_i>0),]=c(NA,NA,NA)
+  
+  TGTshift_i=angle_2vec_DF(baseLOS,nextLOS_i)
+  TGTshift_a=angle_2vec_DF(baseLOS,nextLOS_a)
+  av_i=TGTshift_i/interval_i
+  av_a=TGTshift_a/interval2
+  
+  
+  baseTGT=func_X(baseTime,func,1)
+  nextBAT_i=func_X(nextTime_i,func,0)
+  nextBAT_a=func_X(nextTime_a,func,0)
+  baseLOSloc_i=baseTGT-nextBAT_i
+  baseLOSloc_a=baseTGT-nextBAT_a
+  
+  baseLOSloc_i[which(nextTime_i>0),]=c(NA,NA,NA)
+  baseLOSloc_a[which(nextTime_i>0),]=c(NA,NA,NA)
+  
+  TGTshiftloc_i=angle_2vec_DF(baseLOSloc_i,nextLOS_i)
+  TGTshiftloc_a=angle_2vec_DF(baseLOSloc_a,nextLOS_a)
+  
+  src=cbind(src,
+            intvl,
+            TGTshift_i,
+            TGTshift_a,
+            av_i,
+            av_a,
+            TGTshiftloc_i,
+            TGTshiftloc_a
+  )
+  return(src)
+}
+
+add_TGTshift_sim<-function(src,all,interval,func){
+  interval_i=na.omit(all$interval)[1]
+  baseTime=src[-nrow(src),]$time
+  nextTime_i=baseTime+interval_i
+  nextTime_a=baseTime+interval
+  
+  baseLOS=func_R2(baseTime,func)
+  nextLOS_i=func_R2(nextTime_i,func)
+  nextLOS_a=func_R2(nextTime_a,func)
+  
+  baseLOS[which(nextTime_i>0),]=c(NA,NA,NA)
+  nextLOS_i[which(nextTime_i>0),]=c(NA,NA,NA)
+  nextLOS_a[which(nextTime_i>0),]=c(NA,NA,NA)
+  
+  TGTshift_i=angle_2vec_DF(baseLOS,nextLOS_i)
+  TGTshift_a=angle_2vec_DF(baseLOS,nextLOS_a)
+  
+  
+  baseTGT=func_X(baseTime,func,1)
+  nextBAT_i=func_X(nextTime_i,func,0)
+  nextBAT_a=func_X(nextTime_a,func,0)
+  baseLOSloc_i=baseTGT-nextBAT_i
+  baseLOSloc_a=baseTGT-nextBAT_a
+  
+  baseLOSloc_i[which(nextTime_i>0),]=c(NA,NA,NA)
+  baseLOSloc_a[which(nextTime_i>0),]=c(NA,NA,NA)
+  
+  TGTshiftloc_i=angle_2vec_DF(baseLOSloc_i,nextLOS_i)
+  TGTshiftloc_a=angle_2vec_DF(baseLOSloc_a,nextLOS_a)
+  
+  src=cbind(src,
+            TGTshift_i=c(TGTshift_i,NA),
+            TGTshift_a=c(TGTshift_a,NA),
+            TGTshiftloc_i=c(TGTshiftloc_i,NA),
+            TGTshiftloc_a=c(TGTshiftloc_a,NA)
+  )
+  return(src)
+}
+
+initialformatting<-function(posi,pul){
+  posi=na.omit(posi)
+  
+  if(any(posi$mx==0&posi$my==0&posi$mz==0)){
+    capture_step=min(which(posi$mx==0&posi$my==0&posi$mz==0))
+  }else{
+    capture_step=length(posi$mx)
+  }
+  
+  ##set time as "time to capture"
+  capture_time=posi$time[capture_step]
+  posi$time=posi$time-capture_time
+  pul$time=pul$time-capture_time
+  
+  ##focusing on BEFORE capture
+  posi=posi[1:(capture_step-1),]
+  
+  ## matchinng to position data
+  pul=pul[which(pul$time>min(posi$time)),]
+  pul=pul[which(pul$time<=0),]
+  
+  
+  ##save for GL
+  # setwd(subdir)
+  # write.csv(pulse,"pulse_GL.csv",row.names=F, col.names = F)
+  
+  
+  ##set initial bat position as principle point
+  for(dim in 1:3){
+    basepoint=posi[1,dim+1]/1000.0
+    posi[,dim+1]=posi[,dim+1]/1000.0-basepoint
+    posi[,dim+4]=posi[,dim+4]/1000.0-basepoint
+  }
+  
+  #add beam width
+  pul$widthH[which(pul$widthH==0)]=NA
+  pul$widthV[which(pul$widthV==0)]=NA
+  pul=na.omit(pul)
+  pul$widthH=pul$widthH*2
+  pul$widthV=pul$widthV*2
+  
+  widthHV=sqrt(pul$widthH^2+pul$widthV^2)
+  widthHV_init=rep(na.omit(widthHV)[1], length=length(widthHV))
+  pul=cbind(pul,widthHV,widthHV_init)
+  
+  #clockwise positive
+  pul$peakdirectionH=pul$peakdirectionH*(-1)
+  pul$cobH=pul$cobH*(-1)
+  
+  #add pulse interval
+  interval=(pul[-1,]-pul[-nrow(pul),])$time
+  pul=cbind(pul, interval=c(NA,interval))
+  
+  return(list(posi,pul))
+}
+
+
+getRW<-function(bat,tgt,interval){
+  R=tgt-bat
+  Rmag=sqrt(R[,1]^2+R[,2]^2+R[,3]^2)
+  Wmag=angle_2vec_DF(R[-1,],R[-nrow(R),])/interval
+  Wmag=c(NA,Wmag)
+  
+  return(data.frame(Rmag,Wmag))
+}
+
+oripursuit<-function(dataset){
+  interval=dataset$time[-1]-dataset$time[-nrow(dataset)]
+  sns_b <- data.frame(x=dataset$x_bx,y=dataset$x_by,z=dataset$x_bz)
+  sns_m<-data.frame(x=dataset$x_mx,y=dataset$x_my,z=dataset$x_mz)
+  mnv_b <- data.frame(x=dataset$x_bx_L,y=dataset$x_by_L,z=dataset$x_bz_L)
+  mnv_m <- data.frame(x=dataset$x_mx_L,y=dataset$x_my_L,z=dataset$x_mz_L)
+  sns_RW=getRW(sns_b,sns_m,interval)
+  mnv_RW=getRW(mnv_b,mnv_m,interval)
+  
+  
+  sn=cbind(sns_b,sns_RW)
+  select=sn$Rmag>dist_threshold
+  sn[which(!(select)),]=NA
+  
+  timeselect=(dataset$time+feedbackdelay_Flight)<0
+  mn=cbind(mnv_b,mnv_RW)
+  select=mn$Rmag>dist_threshold
+  mn[which(!(timeselect&select)),]=NA
+  return(cbind(sn=sn,mn=mn))  
+}
+
+purepursuit<-function(dataset,sensingmode=0){
+  
+  interval=dataset$time[-1]-dataset$time[-nrow(dataset)]
+  sns_b <- data.frame(x=dataset$x_bx,y=dataset$x_by,z=dataset$x_bz)
+  sns_m<-data.frame(x=dataset$x_mx,y=dataset$x_my,z=dataset$x_mz)
+  mnv_b <- data.frame(x=dataset$x_bx_L,y=dataset$x_by_L,z=dataset$x_bz_L)
+  mnv_m <- data.frame(x=dataset$x_mx_L,y=dataset$x_my_L,z=dataset$x_mz_L)
+  
+  
+  deltaloc=mnv_b[-1,]-mnv_b[-nrow(mnv_b),]
+  deltaloc_mag=sqrt(deltaloc[,1]^2+deltaloc[,2]^2+deltaloc[,3]^2)
+  v=deltaloc_mag/interval
+  
+  sim_result=data.frame(sn.x=sns_b$x[1],sn.y=sns_b$y[1],sn.z=sns_b$z[1],
+                        mn.x=mnv_b$x[1],mn.y=mnv_b$y[1],mn.z=mnv_b$z[1])
+  if(nrow(mnv_b)>1){
+    for(i in 1:(nrow(mnv_b)-1)){  
+      
+      sensing_s=(sim_result[i,1:3])
+      mnvring_s=(sim_result[i,4:6])
+      
+      if(sensingmode){
+        sensing_s=mnvring_s
+      }
+      
+      sim_R=sns_m[i,]-sensing_s
+      sim_Rmag=as.numeric(sqrt(sim_R[1]^2+sim_R[2]^2+sim_R[3]^2))
+      sim_TGTdir=sim_R/sim_Rmag
+      
+      next_sensing_s=mnvring_s+sim_TGTdir*(v[i]*(interval[i]-feedbackdelay_Flight))
+      next_mnvring_s=mnvring_s+sim_TGTdir*(v[i]*(interval[i]-0))
+      
+      result<-c(as.vector(as.matrix(next_sensing_s)),
+                as.vector(as.matrix(next_mnvring_s)))
+      sim_result=rbind(sim_result,result)
+    }
+  }else{sim_result=data.frame(NA,NA,NA,NA,NA,NA)}
+  
+  
+  sns_b=sim_result[,1:3]
+  mnv_b=sim_result[,4:6]
+  sns_RW=getRW(sns_b,sns_m,interval)
+  mnv_RW=getRW(mnv_b,mnv_m,interval)
+  
+  sn=cbind(sns_b,sns_RW)
+  colnames(sn)=c("x","y","z","Rmag","Wmag")
+  select=sn$Rmag>dist_threshold
+  sn[which(!(select)),]=NA
+  
+  mn=cbind(mnv_b,mnv_RW)
+  colnames(mn)=c("x","y","z","Rmag","Wmag")
+  timeselect=(dataset$time+feedbackdelay_Flight)<0
+  select=mn$Rmag>dist_threshold
+  mn[which(!(timeselect&select)),]=NA
+  return(cbind(sn=sn,mn=mn))  
+}
+
+leadpursuit<-function(dataset,sensingmode=0){
+  interval=dataset$time[-1]-dataset$time[-nrow(dataset)]
+  sns_b <- data.frame(x=dataset$x_bx,y=dataset$x_by,z=dataset$x_bz)
+  sns_m<-data.frame(x=dataset$x_mx,y=dataset$x_my,z=dataset$x_mz)
+  mnv_b <- data.frame(x=dataset$x_bx_L,y=dataset$x_by_L,z=dataset$x_bz_L)
+  mnv_m <- data.frame(x=dataset$x_mx_L,y=dataset$x_my_L,z=dataset$x_mz_L)
+  deltaloc=mnv_b[-1,]-mnv_b[-nrow(mnv_b),]
+  deltaloc_mag=sqrt(deltaloc[,1]^2+deltaloc[,2]^2+deltaloc[,3]^2)
+  v=deltaloc_mag/interval
+  
+  
+  if(nrow(mnv_b)>2){
+    sim_result=data.frame(sn.x=sns_b$x[1:2],sn.y=sns_b$y[1:2],sn.z=sns_b$z[1:2],
+                          mn.x=mnv_b$x[1:2],mn.y=mnv_b$y[1:2],mn.z=mnv_b$z[1:2])
+    for(i in 2:(nrow(mnv_b)-1)){  
+      LOS=sns_m[(i-1):i,]-sim_result[(i-1):i,1:3]
+      sim_TGTdir=angular_pred_core(LOS[1,],LOS[2,],interval[i-1],0.1535,12.79/180*pi)
+      
+      mnvring_s=sim_result[i,4:6]
+      next_sensing_s=mnvring_s+sim_TGTdir*(v[i]*(interval[i]-feedbackdelay_Flight))
+      next_mnvring_s=mnvring_s+sim_TGTdir*(v[i]*(interval[i]-0))
+      
+      result<-c(as.vector(as.matrix(next_sensing_s)),
+                as.vector(as.matrix(next_mnvring_s)))
+      sim_result=rbind(sim_result,result)
+    }
+  }else{sim_result=data.frame(NA,NA,NA,NA,NA,NA)}
+  
+  sns_b=sim_result[,1:3]
+  mnv_b=sim_result[,4:6]
+  sns_RW=getRW(sns_b,sns_m,interval)
+  mnv_RW=getRW(mnv_b,mnv_m,interval)
+  
+  sn=cbind(sns_b,sns_RW)
+  colnames(sn)=c("x","y","z","Rmag","Wmag")
+  select=sn$Rmag>dist_threshold
+  sn[which(!(select)),]=NA
+  
+  mn=cbind(mnv_b,mnv_RW)
+  colnames(mn)=c("x","y","z","Rmag","Wmag")
+  timeselect=(dataset$time+feedbackdelay_Flight)<0
+  select=mn$Rmag>dist_threshold
+  mn[which(!(timeselect&select)),]=NA
+  return(cbind(sn=sn,mn=mn))  
+}
+
+leadpursuit_abs<-function(dataset,sensingmode=0){
+  interval=dataset$time[-1]-dataset$time[-nrow(dataset)]
+  sns_b <- data.frame(x=dataset$x_bx,y=dataset$x_by,z=dataset$x_bz)
+  sns_m<-data.frame(x=dataset$x_mx,y=dataset$x_my,z=dataset$x_mz)
+  mnv_b <- data.frame(x=dataset$x_bx_L,y=dataset$x_by_L,z=dataset$x_bz_L)
+  mnv_m <- data.frame(x=dataset$x_mx_L,y=dataset$x_my_L,z=dataset$x_mz_L)
+  deltaloc=mnv_b[-1,]-mnv_b[-nrow(mnv_b),]
+  deltaloc_mag=sqrt(deltaloc[,1]^2+deltaloc[,2]^2+deltaloc[,3]^2)
+  v=deltaloc_mag/interval
+  
+  
+  
+  if(nrow(mnv_b)>2){
+    sim_result=data.frame(sn.x=sns_b$x[1:2],sn.y=sns_b$y[1:2],sn.z=sns_b$z[1:2],
+                          mn.x=mnv_b$x[1:2],mn.y=mnv_b$y[1:2],mn.z=mnv_b$z[1:2])
+    for(i in 2:(nrow(mnv_b)-1)){  
+      LOS=sns_m[(i-1):i,]-sim_result[(i-1):i,1:3]
+      mothv=sns_m[i,]-sns_m[i-1,]
+      
+      sim_TGTdir=absTGTV_pred_core(LOS[1,],LOS[2,],mothv,interval[i-1],0.1535,12.79/180*pi)
+      
+      mnvring_s=sim_result[i,4:6]
+      next_sensing_s=mnvring_s+sim_TGTdir*(v[i]*(interval[i]-feedbackdelay_Flight))
+      next_mnvring_s=mnvring_s+sim_TGTdir*(v[i]*(interval[i]-0))
+      
+      result<-c(as.vector(as.matrix(next_sensing_s)),
+                as.vector(as.matrix(next_mnvring_s)))
+      sim_result=rbind(sim_result,result)
+    }
+  }else{sim_result=data.frame(NA,NA,NA,NA,NA,NA)}
+  
+  sns_b=sim_result[,1:3]
+  mnv_b=sim_result[,4:6]
+  sns_RW=getRW(sns_b,sns_m,interval)
+  mnv_RW=getRW(mnv_b,mnv_m,interval)
+  
+  sn=cbind(sns_b,sns_RW)
+  colnames(sn)=c("x","y","z","Rmag","Wmag")
+  select=sn$Rmag>dist_threshold
+  sn[which(!(select)),]=NA
+  
+  mn=cbind(mnv_b,mnv_RW)
+  colnames(mn)=c("x","y","z","Rmag","Wmag")
+  timeselect=(dataset$time+feedbackdelay_Flight)<0
+  select=mn$Rmag>dist_threshold
+  mn[which(!(timeselect&select)),]=NA
+  return(cbind(sn=sn,mn=mn))  
+}
+
+
+
+FlightSimulation<-function(pulse, sensingmode=0){
+  
+  
+  timerange=pulse$time+feedbackdelay_Flight
+  ori_p=oripursuit(pulse)
+  pure_p=purepursuit(pulse,sensingmode)
+  lead_p=leadpursuit(pulse,sensingmode)
+  labs_p=leadpursuit_abs(pulse,sensingmode)
+  
+  
+  result=data.frame(ori_p=ori_p,pure_p=pure_p,lead_p=lead_p,labs_p=labs_p)
+  timeselect=timerange<0
+  
+  # select=result$pure_p.mn.Rmag>dist_threshold
+  select=result$Rb_mag>dist_threshold&result$Rs_mag>dist_threshold
+  result[which(!(timeselect&select)),]=NA
+  # result[which(!(timeselect)),]=NA
+  EachFlight=result
+  return(EachFlight)
+}
+
+addKinematicData<-function(pulse,func){
+  location <- data.frame(matrix(rep(NA, 1), nrow=nrow(pulse)))[numeric(0), ]
+  for(funcindex in 1:6){
+    predicted <- predict(func[[funcindex]],pulse$time, deriv = 0)$y
+    location=as.data.frame(cbind(location,predicted))
+  }
+  
+  for(funcindex in 1:6){
+    predicted <- predict(func[[funcindex]],pulse$time+feedbackdelay_Flight, deriv = 0)$y
+    location=as.data.frame(cbind(location,predicted))
+  }
+  
+  colnames(location)=c("x_bx","x_by","x_bz","x_mx","x_my","x_mz",
+                       "x_bx_L","x_by_L","x_bz_L","x_mx_L","x_my_L","x_mz_L")
+  
+  
+  velocity <- data.frame(matrix(rep(NA, 1), nrow=nrow(pulse)))[numeric(0), ]
+  for(funcindex in 1:6){
+    predicted <- predict(func[[funcindex]],pulse$time, deriv = 1)$y
+    velocity=as.data.frame(cbind(velocity,predicted))
+  }
+  for(funcindex in 1:6){
+    predicted <- predict(func[[funcindex]],pulse$time+feedbackdelay_Flight, deriv = 1)$y
+    velocity=as.data.frame(cbind(velocity,predicted))
+  }
+  colnames(velocity)=c("v_bx","v_by","v_bz","v_mx","v_my","v_mz",
+                       "v_bx_L","v_by_L","v_bz_L","v_mx_L","v_my_L","v_mz_L")
+  
+  acceleration <- data.frame(matrix(rep(NA, 1), nrow=nrow(pulse)))[numeric(0), ]
+  for(funcindex in 1:6){
+    predicted <- predict(func[[funcindex]],pulse$time, deriv = 2)$y
+    acceleration=as.data.frame(cbind(acceleration,predicted))
+  }
+  colnames(acceleration)=c("a_bx","a_by","a_bz","a_mx","a_my","a_mz")
+  
+  
+  
+  pulse=cbind(pulse,location,velocity,acceleration)
+  
+  
+  
+  ## linear vector 
+  R=data.frame(x=(pulse$x_mx-pulse$x_bx), 
+               y=(pulse$x_my-pulse$x_by), 
+               z=(pulse$x_mz-pulse$x_bz))
+  R_mag=sqrt(R$x^2+R$y^2+R$z^2)
+  
+  R_L=data.frame(x=(pulse$x_mx_L-pulse$x_bx_L), 
+                 y=(pulse$x_my_L-pulse$x_by_L), 
+                 z=(pulse$x_mz_L-pulse$x_bz_L))
+  
+  ## linear velocity vector (instantaneous)
+  Vx=velocity$v_mx-velocity$v_bx
+  Vy=velocity$v_my-velocity$v_by
+  Vz=velocity$v_mz-velocity$v_bz
+  V=data.frame(x=Vx,y=Vy,z=Vz)
+  V_mag=sqrt(V$x^2+V$y^2+V$z^2)
+  
+  ## angular velocity vector (instantaneous)
+  av=cross(as.matrix(R),as.matrix(V))/(R_mag^2)
+  av=data.frame(av)
+  colnames(av)=c("x","y","z")
+  av_mag=sqrt(av$x^2+av$y^2+av$z^2)*180/pi
+  
+  pulse=cbind(pulse,R=R,R_mag,V_mag,av_mag,R_L=R_L)
+  
+  TGTV=data.frame(x=velocity$v_mx,y=velocity$v_my,z=velocity$v_mz)
+  absoluteTGTav=cross(as.matrix(R),as.matrix(TGTV))/(R_mag^2)
+  absoluteTGTav=data.frame(absoluteTGTav)
+  colnames(absoluteTGTav)=c("x","y","z")
+  
+  abTGTav_mag=sqrt(absoluteTGTav$x^2+absoluteTGTav$y^2+absoluteTGTav$z^2)*180/pi
+  pulse=cbind(pulse,abTGTav_mag)
+  
+  return(pulse)
+}
+
+CalcAV.vector<-function(vector,interval){
+  # lengthcheck=all(sapply(list(nrow(vector),
+  #                             length(interval)),
+  #                        function(x) x == length(interval)))
+  # if(!lengthcheck){
+  #   print("length not matched")
+  #   break()
+  # }
+  result=data.frame(matrix(rep(NA,3), nrow=1))[numeric(0), ]
+  colnames(result)=c("x","y","z")
+  
+  if(nrow(vector)==0){
+    return(result)
+  }
+  
+  vector1=vector[-nrow(vector),]
+  vector2=vector[-1,]
+  
+  for(i in 1:nrow(vector1)){
+    step1=as.numeric(vector1[i,])
+    step2=as.numeric(vector2[i,])
+    n=cross(step1,step2)
+    av=angle_2vec(step1,step2)*pi/180/interval[i]
+    av.vector=av*n/sqrt(n[1]^2+n[2]^2+n[3]^2)
+    result=rbind(result,t(as.data.frame(av.vector)))
+  }
+  rownames(result)=c(1:nrow(vector1))
+  
+  return(result)
+}
+
+FlightAnalysis<-function(dataset){
+  EachSession=data.frame()
+  for(j in 1:length(dataset)){
+    p=dataset[[j]]
+    p=cbind(p,FlightSimulation(p,0))
+    result=data.frame(index=c(1:nrow(p)))
+    
+    LOS=data.frame(x=p$R.x,y=p$R.y,z=p$R.z)
+    LOS_pure=data.frame(x=p$x_mx-p$pure_p.sn.x, y=p$x_my-p$pure_p.sn.y, z=p$x_mz-p$pure_p.sn.z)
+    LOS_lead=data.frame(x=p$x_mx-p$lead_p.sn.x, y=p$x_my-p$lead_p.sn.y, z=p$x_mz-p$lead_p.sn.z)
+    interval=p$time[-1]-p$time[-length(p$time)]
+    ## flight maneuver analysis
+    # AA: angular acceleration
+    # bv: bat's velocity vector
+    # los: line of sight
+    
+    BatXL=data.frame(x=p$x_bx_L,y=p$x_by_L,z=p$x_bz_L)
+    BatVDL=(BatXL[-1,]-BatXL[-nrow(BatXL),])/interval
+    
+    BatXL_pure=data.frame(x=p$pure_p.mn.x,y=p$pure_p.mn.y,z=p$pure_p.mn.z)
+    BatVDL_pure=(BatXL_pure[-1,]-BatXL_pure[-nrow(BatXL_pure),])/interval
+    
+    BatXL_lead=data.frame(x=p$lead_p.mn.x,y=p$lead_p.mn.y,z=p$lead_p.mn.z)
+    BatVDL_lead=(BatXL_lead[-1,]-BatXL_lead[-nrow(BatXL_lead),])/interval
+    
+    
+    MothX=data.frame(x=p$x_mx,y=p$x_my,z=p$x_mz)
+    MothV=data.frame(x=p$v_mx,y=p$v_my,z=p$v_mz)
+    MothVD=(MothX[-1,]-MothX[-nrow(MothX),])/interval
+    
+    LOS_Tl=MothX-BatXL
+    
+    ## Bat's flight direction relative to TGT direction
+    
+    result=FlightDirection(LOS,BatVDL,MothVD,result,"LOSl_F_V")
+    result=FlightDirection(LOS_Tl,BatVDL,MothVD,result,"Tl_F_V")
+    result=FlightDirection(LOS_pure,BatVDL_pure,MothVD,result,"LOSl_Fpr_V")
+    result=FlightDirection(LOS_lead,BatVDL_lead,MothVD,result,"LOSl_Fld_V")
+    
+    
+    result=FlightLA(BatVDL,LOS,interval,result,"vbat")
+    result=FlightLA(BatVDL_pure,LOS_pure,interval,result,"vbat_pure")
+    result=FlightLA(BatVDL_lead,LOS_lead,interval,result,"vbat_lead")
+    
+    result=cbind(result,TGTdir=FlightSimulation(p,0))
+    result=cbind(result,TGTloc=FlightSimulation(p,1))
+    
+    ## storing to EachSession
+    EachSession=rbind(EachSession,result)
+  }
+  return(EachSession)
+  
+}
+
+FlightDirection<-function(non_pred, dir,ref,res, name){
+  a=rotationALL_polar(non_pred[-nrow(non_pred),],
+                      dir,
+                      non_pred[-nrow(non_pred),]+ref,
+                      180,100,1)
+  a=add_NA_head(a,nrow(res))
+  b=a$r2$OBJ$hv
+  colnames(b)=paste0(name,".",colnames(b))
+  res=cbind(res,b)
+  return(res)
+}
+
+FlightLA<-function(v.vector, los, intvl,res, name){
+  #x,o,o,...,x
+  turn_v.vector=turnAcc(v.vector[-nrow(v.vector),],
+                        v.vector[-1,],
+                        intvl[-1],
+                        v.vector[-nrow(v.vector),])
+  LA_v.vector=turn_v.vector[[1]]
+  LA_v.vector=add_NA_head2(LA_v.vector,nrow(res)-1)
+  LA_v.vector=add_NA_tail2(LA_v.vector,nrow(res))
+  
+  #x,o,o,...,o
+  turn_los=turnAcc(los[-nrow(los),], 
+                   los[-1,], 
+                   intvl, 
+                   v.vector)
+  LA_los=turn_los[[1]]
+  LA_los=add_NA_head2(LA_los,nrow(res))
+  v.vector=add_NA_head2(v.vector,nrow(res))
+  steering_LA=rotationALL_polar(v.vector,
+                                LA_v.vector,
+                                LA_los,
+                                180,100,1)
+  a=add_NA_tail(steering_LA,nrow(res))
+  b=as.data.frame(a$r2$OBJ$xyz_R$z)
+  c=as.data.frame(a$r2$REF$xyz_R$z)
+  d=as.data.frame(sqrt(LA_v.vector$x^2+LA_v.vector$y^2+LA_v.vector$z^2))
+  
+  colnames(b)=c(paste0("LA.",name,".projected"))
+  colnames(c)=c("LA.LOS")
+  colnames(d)=c(paste0("LA.",name,".mag"))
+  
+  res=cbind(res,b,c,d)
+  return(res)
+}
+
+getLastDetectedTimestep<-function(p,sensing_feedback_delay){
+  
+  t=p$time
+  
+  sensed.t=numeric()
+  sensed.index=numeric()
+  current.index=c(1:length(t))
+  curr2=current.index-1
+  curr2[which(curr2<=0)]=NA
+  curr3=current.index-2
+  curr3[which(curr3<=0)]=NA
+  
+  if(length(t)<2){
+    for(i in 1:length(t)){
+      sensed.t[i]=NA
+      sensed.index[i]=NA
+    }
+  }else{
+    
+    for(i in length(t):2){
+      curr.t=t[i]
+      delay.t=curr.t-sensing_feedback_delay
+      
+      for(j in i:2){
+        
+        if(t[j]>=delay.t&delay.t>t[j-1]){
+          sensed.t[i]=t[j-1]
+          sensed.index[i]=j-1
+          break
+        }else{
+          sensed.t[i]=NA
+          sensed.index[i]=NA
+        }
+      }
+    }
+  }
+  
+  
+  last2=sensed.index-1
+  last2[which(last2==0)]=NA
+  p=cbind(p,curr=current.index,
+          curr2=curr2,
+          curr3=curr3,
+          last=sensed.index,
+          last2=last2)
+  return(p)
+  
+}
+
+SightAnalysis<-function(dataset){
+  EachSession=data.frame()
+  
+  for(j in 1:length(dataset)){
+    p=dataset[[j]]
+    print(paste0(head3,"-",j, ", num of data:", nrow(p)))
+    #basic information
+    time=p$time
+    interval2=p[p$curr,]$time-p[p$last,]$time
+    LOS=data.frame(x=p$R.x,y=p$R.y,z=p$R.z)
+    
+    BatX=data.frame(x=p$x_bx,y=p$x_by,z=p$x_bz)
+    TGTX=data.frame(x=p$x_mx,y=p$x_my,z=p$x_mz)
+    
+    LOS_Tl=TGTX[p$last,]-BatX[p$curr,]
+    
+    PD_hv<-data.frame(p$peakdirectionH,p$peakdirectionV)
+    PD=cnvrtAngle2Vector(PD_hv)[,3:5]
+    
+    p=add_delta_AV(p,LOS,time,p$last,p$last2,"perceived_av_Sound")
+    p=add_delta_AV(p,LOS,time,p$curr2,p$curr3,"perceived_av_Flight")
+    
+    ## naming rule
+    ## P:pulse directon
+    ## L:linear predicted direction
+    ## A:angular predicted direction
+    ## LOSc:Current LOS
+    ## LOSl:Last LOS
+    
+    ## pulse and TGT direction in global coordinates
+    Null_P_LOSc=rotationALL_polar(data.frame(rep(0, nrow(PD)),rep(0, nrow(PD)),rep(0, nrow(PD))),
+                                  PD,
+                                  LOS,
+                                  180,100,1)
+    p=cbind(p,"P"=Null_P_LOSc$v$OBJ$hv)
+    p=cbind(p,"LOSc"=Null_P_LOSc$v$REF$hv)
+    
+    
+    LOSl_P_LOSc=rotationALL_polar(LOS[p$last,],
+                                  PD[p$curr,],
+                                  LOS[p$curr,],
+                                  180,100,1)
+    p=cbind(p,"LOSl_P"=LOSl_P_LOSc$r2$OBJ$hv)
+    p=cbind(p,"LOSl_LOSc"=LOSl_P_LOSc$r2$REF$hv)
+    p=cbind(p,"P(-1)"=LOSl_P_LOSc$v$OBJ$hv)
+    p=cbind(p,"LOSc(-1)"=LOSl_P_LOSc$v$REF$hv)
+    # 
+    
+    ## pulse direction relative to LAST TGT LOCATION (data for figEx.2)
+    Tl_P_Tc=rotationALL_polar(LOS_Tl[p$curr,],
+                              PD[p$curr,],
+                              LOS[p$curr,],
+                              180,100,1)
+    Tl_P_Tc=add_NA_tail(Tl_P_Tc,nrow(p))
+    p=cbind(p,"Tl_P"=Tl_P_Tc$r2$OBJ$hv)
+    p=cbind(p,"Tl_Tc"=Tl_P_Tc$r2$REF$hv)
+    
+    
+    ## Predicted direction (linear and angular) 
+    
+    
+    
+    
+    last1_2_interval=p$time[p$last]-p$time[p$last2]
+    curr_last_interval=p$time[p$curr]-p$time[p$last]
+    PRED_LV=linear_pred(LOS[p$last2,],
+                        LOS[p$last,],
+                        last1_2_interval,
+                        curr_last_interval)
+    PRED_LV=add_NA_head2(PRED_LV,nrow(p))
+    
+    
+    PRED_AV=angular_pred(LOS[p$last2,],
+                         LOS[p$last,],
+                         last1_2_interval,
+                         curr_last_interval)
+    PRED_AV=add_NA_head2(PRED_AV,nrow(p))
+    
+    
+    P_L_A=rotationALL_polar(PD,
+                            PRED_LV,
+                            PRED_AV,
+                            180,100,1)
+    
+    p=cbind(p,"P_L"=P_L_A$r2$OBJ$hv)
+    p=cbind(p,"P_A"=P_L_A$r2$REF$hv)
+    
+    
+    LOSc_L_A=rotationALL_polar(LOS,
+                               PRED_LV,
+                               PRED_AV,
+                               180,100,1)
+    
+    LOSc_P_Null=rotationALL_polar(LOS,
+                                  PD,
+                                  data.frame(rep(0, nrow(PD)),rep(0, nrow(PD)),rep(0, nrow(PD))),
+                                  180,100,1)
+    
+    p=cbind(p,"LOSc_L"=LOSc_L_A$r2$OBJ$hv)
+    p=cbind(p,"LOSc_A"=LOSc_L_A$r2$REF$hv)
+    p=cbind(p,"LOSc_P"=LOSc_P_Null$r2$OBJ$hv)
+    
+    
+    # preparation for the simulation 
+    # TGT direction shift caused by factor2 (interval) 
+    # _a:actual (+), _i:fixed to initial value (-)
+    p=add_TGTshift_sim2(p,pulse,interval2,motionFunc)
+    
+    ## storing to EachSession
+    EachSession=rbind(EachSession,p)
+  }
+  
+  return(EachSession)
+}
+
+huelisting<-function(y_list){
+  colis=numeric()
+  for(i in 0:(length(y_list)-1)){
+    colis=c(colis,i/length(y_list))
+  }
+  return(colis)
+}
+
+Multi_paird_comp<-function(ylist,
+                           id,ex,
+                           xlab,ylab,
+                           backON="backOFF",ylimit=c(0,0),drawing=1,title="",
+                           sat=0.65,val=0.8,al=0.1,collist=huelisting(ylist)
+){
+  id=AllSessions$ID
+  ex=AllSessions$ExpIndex
+  
+  y_num=length(ylist)
+  xlist=list()
+  for(i in 1:y_num){
+    x_=rep(i-1,length(ylist[[i]]))
+    xlist=c(xlist,list(x_))
+  }
+  
+  
+  
+  
+  draw<-ggplot()
+  seglist=list()
+  lmlist=list()
+  plist=list()
+  meanlist=numeric()
+  sizelist=c(rep(7.5,y_num-2),6,5)
+  
+  loop=1
+  for(j in 1:y_num){
+    for(i in 1:y_num){
+      if(i>=j)next
+      plot=data.frame(a.x=xlist[[i]],
+                      a.y=ylist[[i]],
+                      b.x=xlist[[j]],
+                      b.y=ylist[[j]])
+      plot<-as.data.frame(plot[is.finite(rowSums(plot)),])
+      seg<-geom_segment(aes(x = a.x, y = a.y, xend = b.x, yend =  b.y), 
+                        colour = hsv(collist[loop], sat, val, al),data = plot)
+      seglist=c(seglist,list(seg))
+      
+      res=LMM_comparison(ylist[i],ylist[j],id,ex,"xlab","ylab","backOFF",c(0,0),0,"")
+      plotLMM=data.frame(a.x=i-1,a.y=res[[5]]$y[1],b.x=j-1,b.y=res[[5]]$y[2])
+      plot_p=data.frame(x=c(i-1,j-1),y=res[[5]]$y)
+      meanlist=c(meanlist,res[[5]]$y)
+      lm<-geom_segment(aes(x = a.x, y = a.y, xend = b.x, yend = b.y), 
+                       colour = hsv(collist[loop], 0.65, 1, alpha=1),size=2.5, data=plotLMM)
+      point<-geom_point(aes(x = x, y = y), 
+                        colour = hsv(collist[loop], 0.65, 1, alpha=1),size=sizelist[loop], data=plot_p)
+      plist<-c(plist,list(point))
+      lmlist<-c(lmlist,list(lm))
+      loop=loop+1
+    }
+  }
+  
+  
+  
+  draw<-draw+seglist
+  for(i in 1:length(lmlist)){
+    draw<-draw+lmlist[[i]]+plist[[i]]
+  }
+  base=mean(meanlist)
+  range=abs(max(meanlist)-min(meanlist))*4
+  ymin=base-range
+  ymax=base+range
+  
+  if(ylimit[1]!=0||ylimit[2]!=0){
+    ymin=ylimit[1]
+    ymax=ylimit[2]
+  }
+  
+  draw<-draw+xlim(-1,y_num)+ylim(ymin,ymax)
+  
+  if(backON=="backOFF"){
+    draw<-draw+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA), 
+      axis.text= element_blank(),
+      plot.title = element_blank(),
+      axis.title = element_blank()
+    )
+  }
+  print(draw)
+  
+  
+  if(title!=""){
+    ggsave(title, draw, bg = "transparent",dpi=320,width=11.3*(y_num+1)/3,height=10)
+  }
+  
+  
+}
+
+
+LMM_comparison<-function(a,b,id,ex,xlab,ylab,backON="backOFF",ylimit=c(0,0),drawing=1,title=""){
+  dataset=data.frame(a,b,id,ex) 
+  dataset_omit<-as.data.frame(dataset[is.finite(rowSums(dataset)),])
+  colnames(dataset_omit)=c("a","b","ID","Ex")
+  Dev<-c(dataset_omit$a,dataset_omit$b)
+  model_type<-c(rep("a",length(dataset_omit$a)), rep("b",length(dataset_omit$b)))
+  emissionIndex<-c(as.factor(1:length(dataset_omit$a)), as.factor(1:length(dataset_omit$b)))
+  ID<-c(dataset_omit$ID,dataset_omit$ID)
+  Ex<-c(dataset_omit$Ex,dataset_omit$Ex)
+  ER_data<-data.frame(Dev= Dev, model_type=model_type, emissionIndex=emissionIndex, ID=ID,Ex=Ex)
+  
+  (lmer(Dev ~ model_type + (1|emissionIndex) + (1|ID) +(1|Ex), data= ER_data)->model) 
+  (lmer(Dev ~ 1 + (1|emissionIndex) + (1|ID)+(1|Ex), data= ER_data)->nullmodel) 
+  
+  
+  print(summary(model))
+  coeff_fix=as.data.frame(t(as.data.frame(fixef(model))))
+  
+  ratio=(coeff_fix[1]+coeff_fix[2])/coeff_fix[1]
+  print("performance ratio:")
+  print(ratio)
+  
+  lrt=anova(model,nullmodel,test = "Chisq")
+  print("lrt test:")
+  print(lrt)
+  
+  #manual calc. for wald test
+  coeff=summary(model)$coefficients
+  diff=coeff[2,1]/(coeff[1,1]+coeff[2,1])
+  wald=1-pchisq((coeff[2,1]/coeff[2,2])^2,1) 
+  print("wald test:")
+  print(wald)
+  
+  plotdata<-data.frame(rep(0,nrow(dataset_omit)), 
+                       dataset_omit$a,
+                       rep(1,nrow(dataset_omit)),
+                       dataset_omit$b)
+  colnames(plotdata)=c("x1","a","x2","b")
+  
+  plotLMM<-data.frame(c(0,1),c(coeff[1,1],coeff[1,1]+coeff[2,1]))
+  colnames(plotLMM)=c("x","y")
+  colLMM = rgb(1, 0.35, 0.4, alpha=1)
+  
+  draw<-ggplot()
+  seg<-geom_segment(aes(x = plotdata[,1], y = plotdata[,2], xend = plotdata[,3], yend = plotdata[,4]), colour = rgb(0, 0, 0, alpha=0.2),data = plotdata)
+  
+  size=6
+  point_a<-geom_point(data=plotLMM[,1:2], aes(x=plotLMM[,1:2][,1], y=plotLMM[,1:2][,2]),
+                      shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = colLMM)
+  point_b<-geom_point(data=plotdata[,1:4], aes(x=plotdata[,3], y=plotdata[,4]),
+                      shape = 21, size = size, stroke = 0.3, colour = rgb(0, 0, 0, alpha=0.6), fill = hsv(222/360, 60/100, 100/100, alpha=0.6))
+  
+  if(backON=="backOFF"){
+    draw<-draw+theme(
+      panel.background = element_rect(fill = "transparent",color = NA),
+      panel.grid.minor = element_line(color = NA), 
+      panel.grid.major = element_line(color = NA),
+      plot.background = element_rect(fill = "transparent",color = NA), 
+      axis.text= element_blank(),
+      plot.title = element_blank(),
+      axis.title = element_blank()
+    )
+  }
+  
+  
+  base=coeff[1,1]+coeff[2,1]/2
+  range=abs(coeff[2,1])*4
+  
+  ymin=base-range
+  ymax=base+range
+  
+  if(ylimit[1]!=0||ylimit[2]!=0){
+    ymin=ylimit[1]
+    ymax=ylimit[2]
+  }
+  
+  draw<-draw+seg
+  draw<-draw+xlim(-1,2)+ylim(ymin,ymax)
+  draw<-draw+ylab(ylab)+ggtitle(title)
+  lmmline<-geom_segment(aes(x = plotLMM[1,1], y = plotLMM[1,2], xend = plotLMM[2,1], yend = plotLMM[2,2]), colour = colLMM,size=2.5, data=plotLMM)
+  draw<-draw+point_a
+  draw<-draw+lmmline
+  if(drawing){
+    print(draw)
+  }
+  
+  if(title!=""){
+    ggsave(title, draw, bg = "transparent",dpi=320,width=11.3,height=10)
+  }
+  return(c(ratio[,1],lrt$`Pr(>Chisq)`[2],ymin,ymax,list(plotLMM)))
+}
+
+biastest<-function(y,ID){
+  d=data.frame(y,ID)
+  d_omit<-as.data.frame(d[is.finite(rowSums(d)),])
+  colnames(d_omit)=c("y","ID")
+  lmer(y ~ 1+(1|ID),data=d_omit)->model1
+  lmer(y ~ 0+(1|ID),data=d_omit)->nullmodel
+  print(summary(model1))
+  print(anova(model1, nullmodel))
+}
+
+Oltho_Projection<-function(from, to){
+  lengthcheck=all(sapply(list(nrow(from),
+                              nrow(to)), 
+                         function(x) x == nrow(from)))
+  if(!lengthcheck){
+    print("length not matched")
+    break()
+  }
+  result=data.frame(matrix(rep(NA,3), nrow=1))[numeric(0), ]
+  colnames(result)=c("x","y","z")
+  colnames(from)=c("x","y","z")
+  colnames(to)=c("x","y","z")
+  
+  if(nrow(from)==0){
+    return(result)
+  }
+  
+  mag_from=sqrt(from$x^2+from$y^2+from$z^2)
+  mag_to=sqrt(to$x^2+to$y^2+to$z^2)
+  angle=angle_2vec_DF(from,to)
+  result=mag_from*cos(angle*pi/180.0)*to/mag_to
+  
+  return(result)
+}
+
+LOOPresult<-function(){
+  
+  setwd(paste0(basedir,"/results/FigEx1"))
+  write.csv(delay_result,"delay_result.csv",row.names=F, col.names = T)
+  
+  delay_result_backup=delay_result
+  
+  x_lim=c(min(delay_result$feedbackdelay_Flight),max(delay_result$feedbackdelay_Flight))
+  
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$LM, 
+            x_lim,c(0,20),
+            "delay","Lead angle",
+            "figEx1a_upper.png",0,0,0)
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$LM_lrt, 
+            x_lim,c(0,0.06),
+            "delay","P val. in lead angle",
+            "figEx1a_lower.png",0,1,1)
+  
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$SM, 
+            x_lim,c(-15,5),
+            "delay","Side angle",
+            "",0)
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$SM_lrt, 
+            x_lim,c(0,1),
+            "delay","P val. in side angle",
+            "",0,1)
+  
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$LG, 
+            x_lim,c(0,0.20),
+            "delay","Slope of angular velocity-lead angle",
+            "figEx1b_upper.png",0,0,1)
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$LG_lrt, 
+            x_lim,c(0,0.06),
+            "delay","P val. in slope of lead angle",
+            "figEx1b_lower.png",0,1,1)
+  
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$SG, 
+            x_lim,c(-0.125,0.125),
+            "delay","Slope of angular velocity-side angle",
+            "",0)
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$SG_lrt, 
+            x_lim,c(0,1),
+            "delay","P val. in slope of side angle",
+            "",0,1)
+  
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$N, 
+            x_lim,c(0,3),
+            "delay","Slope of LAlos-LAbat",
+            "figEx1c_upper.png",0,0,1)
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$N_lrt, 
+            x_lim,c(0,0.06),
+            "delay","P val. in slope of LAbat",
+            "figEx1c_lower.png",0,1,1)
+  
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$Wratio_dir, 
+            x_lim,c(0.7,0.9),
+            "delay","Ratio of angular velocity",
+            "figEx1d_upper.png",0,0,1)
+  ggplotter(delay_result$feedbackdelay_Flight,delay_result$W_lrt_dir, 
+            x_lim,c(0,0.06),
+            "delay","P val. in Ratio of angular velocity",
+            "figEx1d_lower.png",0,1,1)
+  setwd("../")
+  
+}
+
+
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+
+
+#simple controller
+generate_results=F
+generate_results_delay=T
+draw_EachSession=F
+draw_RGLfigures=F
+
+
+old.op <- options(max.print=10000)
+pi=atan2(1,1)*4
+G=9.80665
+fps=125
+dist_threshold=0.3
+par(mfrow=c(1,1))
+par(mar=c(3.2, 3.2, 3.2, 3.2), mgp=c(2.0, 0.7, 0))
+
+
+initialdir=getwd()
+print(initialdir)
+setwd("..")
+basedir=getwd()
+expdir=paste0(basedir,"/experiment")
+IDdir=paste0(basedir,"/basic_info")
+
+setwd(IDdir)
+Exp_Bat=read.csv("ID_table.csv",header=T)
+setwd(expdir)
+files  <- list.files()
+
+
+feedbackdelay_Flight=0.120
+feedbackdelay_Sound=0.08
+AllSessions=data.frame()
+AllFlight=data.frame()
+AllFlight_dir=data.frame()
+ExpIndex=0
+
+for (file.name in files) {
+  
+  head3=substr(file.name, 1, 3)
+  head1=substr(head3, 1, 1)
+  if (regexpr("E", head1)  < 0) {next}
+  subdir=paste0(expdir,"/",file.name)
+  setwd(subdir)
+  
+  position=read.csv(paste0(head3,"_position.csv"), header=T)
+  pulse=read.csv(paste0(head3,"_pulse.csv"), header=T)
+  
+  
+  format=initialformatting(position,pulse)
+  position=format[[1]]
+  pulse=format[[2]]
+  
+  #########making motion functions
+  motionFunc=list()
+  for(funcindex in 1:6){
+    func_each <- smooth.spline(position$time, position[,funcindex+1])
+    motionFunc=c(motionFunc,list(func_each))
+  }
+  pulse=addKinematicData(pulse,motionFunc)
+  pulse=cbind(pulse,forNULL=c(1:nrow(pulse)))
+  ####omit low precision data due to short distance
+  select=which(pulse$R_mag>dist_threshold)
+  if(length(select)==0){next}
+  
+  ### fragmentation of data to make non-continuous sections clear 
+  pulse_frag=fragmentation(pulse[select,])
+  
+  res=data.frame()
+  for(j in 1:length(pulse_frag)){
+    pulse_frag[[j]]=getLastDetectedTimestep(pulse_frag[[j]],feedbackdelay_Sound)
+  }
+  
+  ## adding parameters in each fragment to pulse_frag then storing to EachSession 
+  EachSight=SightAnalysis(pulse_frag)
+  EachFlight=FlightAnalysis(pulse_frag)
+  
+  EachSession=cbind(EachSight,EachFlight)
+  
+  
+  
+  ## adding index
+  ID=as.numeric(Exp_Bat[Exp_Bat$Exp.ID==head3,]$Bat.ID)
+  ExpIndex=ExpIndex+1
+  EachSession=cbind(ID,ExpID=head3,ExpIndex,EachSession)
+  
+  ## storing each session data (EachSession) to AllSessions
+  AllSessions=rbind(AllSessions,EachSession)
+  
+  if(draw_EachSession){
+    s_Position=smoothed_position(position,motionFunc,60*5)
+    R_=data.frame(x=(s_Position$x_mx-s_Position$x_bx),
+                  y=(s_Position$x_my-s_Position$x_by),
+                  z=(s_Position$x_mz-s_Position$x_bz))
+    R_mag_=sqrt(R_$x^2+R_$y^2+R_$z^2)
+    select_=which(R_mag_>dist_threshold)
+    
+    
+    s_bat=s_Position[select_,2:4]
+    s_moth=s_Position[select_,5:7]
+    s_R=direction2(s_moth,s_bat)$hv
+    pd=data.frame(EachSight$P.H,EachSight$P.V)
+    td=data.frame(EachSight$LOSc.H,EachSight$LOSc.V)
+    pd_v=data.frame(EachSight$`P(-1).H`,EachSight$`P(-1).V`)
+    td_v=data.frame(EachSight$`LOSc(-1).H`,EachSight$`LOSc(-1).V`)
+    pd_r2=data.frame(EachSight$LOSl_P.H,EachSight$LOSl_P.V)
+    td_r2=data.frame(EachSight$LOSl_LOSc.H,EachSight$LOSl_LOSc.V)
+    
+    drawDirection3d(NULL,pd_v,td_v,"Horizontal Angle","Vertical Angle","default_coordinates(before rotation)")
+    drawDirection3d(NULL,pd_r2,td_r2,"Horizontal Angle","Vertical Angle","defined_coordinates(after rotation)")
+    Polar_line3(s_R,
+                pd,
+                td,
+                8,0,
+                "Horizontal Angle","Vertical Angle",
+                "pointON_b","pathON","densityOFF","textOFF","backON",paste("graphics/pulse_direction/","default_coordinates_full",".png", sep=""),0)
+    
+    
+    drawScene(pulse[select,],s_Position[select_,])
+    olthoPlot_sim(data.frame(s_Position[select_,]$x_bx,s_Position[select_,]$x_by),
+                  data.frame(s_Position[select_,]$x_mx,s_Position[select_,]$x_my),
+                  data.frame(EachSession$TGTdir.pure_p.mn.x,EachSession$TGTdir.pure_p.mn.y),
+                  data.frame(EachSession$x_bx_L,EachSession$x_by_L),
+                  data.frame(EachSession$x_mx_L,EachSession$x_my_L),
+                  data.frame(EachSession$TGTdir.pure_p.mn.x,EachSession$TGTdir.pure_p.mn.y),
+                  
+                  data.frame(EachSession$x_bx,EachSession$x_by),
+                  data.frame(EachSession$x_mx,EachSession$x_my),
+                  
+                  2,"x","y","textON","backON","graphics/scene/simscene2Dx_y_dir_pure.png")
+    
+    olthoPlot_sim(data.frame(s_Position[select_,]$x_bx,s_Position[select_,]$x_by),
+                  data.frame(s_Position[select_,]$x_mx,s_Position[select_,]$x_my),
+                  data.frame(EachSession$TGTdir.labs_p.mn.x,EachSession$TGTdir.labs_p.mn.y),
+                  data.frame(EachSession$x_bx_L,EachSession$x_by_L),
+                  data.frame(EachSession$x_mx_L,EachSession$x_my_L),
+                  data.frame(EachSession$TGTdir.labs_p.mn.x,EachSession$TGTdir.labs_p.mn.y),
+                  
+                  data.frame(EachSession$x_bx,EachSession$x_by),
+                  data.frame(EachSession$x_mx,EachSession$x_my),
+                  
+                  2,"x","y","textON","backON","graphics/scene/simscene2Dx_y_dir_labs.png")
+    
+    olthoPlot_sim(data.frame(s_Position[select_,]$x_bx,s_Position[select_,]$x_by),
+                  data.frame(s_Position[select_,]$x_mx,s_Position[select_,]$x_my),
+                  data.frame(EachSession$TGTdir.lead_p.mn.x,EachSession$TGTdir.lead_p.mn.y),
+                  data.frame(EachSession$x_bx_L,EachSession$x_by_L),
+                  data.frame(EachSession$x_mx_L,EachSession$x_my_L),
+                  data.frame(EachSession$TGTdir.lead_p.mn.x,EachSession$TGTdir.lead_p.mn.y),
+                  
+                  data.frame(EachSession$x_bx,EachSession$x_by),
+                  data.frame(EachSession$x_mx,EachSession$x_my),
+                  
+                  2,"x","y","textON","backON","graphics/scene/simscene2Dx_y_dir_lead.png")
+    
+    
+    olthoPlot_sim(data.frame(s_Position[select_,]$x_bx,s_Position[select_,]$x_by),
+                  data.frame(s_Position[select_,]$x_mx,s_Position[select_,]$x_my),
+                  data.frame(EachSession$TGTloc.pure_p.mn.x,EachSession$TGTloc.pure_p.mn.y),
+                  data.frame(EachSession$x_bx_L,EachSession$x_by_L),
+                  data.frame(EachSession$x_mx_L,EachSession$x_my_L),
+                  data.frame(EachSession$TGTloc.pure_p.mn.x,EachSession$TGTloc.pure_p.mn.y),
+                  
+                  data.frame(EachSession$x_bx,EachSession$x_by),
+                  data.frame(EachSession$x_mx,EachSession$x_my),
+                  
+                  2,"x","y","textON","backON","graphics/scene/simscene2Dx_y_loc.png")
+  }
+}
+
+
+if(generate_results){
+  setwd(basedir)
+  getwd()
+  if(!dir.exists("results")){
+    dir.create("results")
+  }
+  setwd("./results")
+  
+  dirs=c("Fig1","Fig2","Fig3","Fig4","FigS1","FigS2","FigS3","FigS4","FigS5","FigS6")
+  creat_dir<-function(name){
+    if(!dir.exists(name)){
+      dir.create(name)
+    }
+  }
+  lapply(dirs, creat_dir)
+  
+  
+  setwd(paste0(basedir,"/results"))
+  
+  
+  setwd("./Fig1")
+  generate_fig1<-function(){
+    #Fig.1B
+    pulse_sight= data.frame(AllSessions$LOSl_P2.H,AllSessions$LOSl_P2.V)
+    Polar_line2(
+      pulse_sight,
+      NULL,    
+      NULL,
+      4,30,"Pulse Side Angle","Pulse Lead Angle","pointON_a","pathOFF","densityOFF","textOFF","backON","fig1b.png",0,"histON",
+      20)
+    
+    fig1B_lead=ggplot_drawMM(AllSessions$forNULL,AllSessions$LOSl_P.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                             0,c(-1,16),c(-37.5,37.5),
+                             " ","Pulse Lead Angle","fig1b_lead.png",2,0,0)
+    fig1B_side=ggplot_drawMM(AllSessions$forNULL,AllSessions$LOSl_P.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                             0,c(-1,16),c(-37.5,37.5),
+                             " ","Pulse Side Angle","fig1b_side.png",1,0,0)
+    
+    fig1C=ggplot_drawMM(AllSessions$LOSl_LOSc.LeadAngle,AllSessions$LOSl_P.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                        1,c(-1,16),c(-37.5,37.5),
+                        "TGT direction shift","Pulse Lead Angle","fig1c.png",2,0)
+    
+    fig1C_simtest=ggplot_drawMM(AllSessions$LOSl_LOSc.LeadAngle,AllSessions$LOSl_P.LeadAngle-AllSessions$LOSl_LOSc.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                                1,c(-1,16),c(-60,60),
+                                "TGT direction shift","diff Lead-TGT shift","fig1c_simtest.png",1,0,0)
+    
+    fig1D=ggplot_drawMM(AllSessions$LOSl_LOSc.LeadAngle,AllSessions$LOSl_P.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                        1,c(-1,16),c(-37.5,37.5),
+                        "TGT direction shift","Pulse Side Angle","fig1d.png",1,0)
+    
+    fig1D_simtest=ggplot_drawMM(AllSessions$LOSl_LOSc.LeadAngle,AllSessions$LOSl_P.SideAngle-AllSessions$LOSl_LOSc.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                                1,c(-1,16),c(-37.5,37.5),
+                                "TGT direction shift","diff Side-zero","fig1d_simtest.png",1,0,0)
+    
+    # Three_d_plot(AllSessions$LOSl_P.LeadAngle,
+    #              AllSessions$LOSl_P.SideAngle,
+    #              AllSessions$LOSl_LOSc.LeadAngle,
+    #              30,c(-37.5,37.5),c(-37.5,37.5),c(0,15),
+    #              as.vector(fixed.effects(fig1C)),
+    #              as.vector(fixed.effects(fig1D)),
+    #              "fig1cd_3d.png")
+    
+    fig1E=ggplot_drawMM_addNLS(-AllSessions$R_mag,1/AllSessions$interval,AllSessions$ID,AllSessions$ExpIndex,
+                               1,c(-4,0),c(0,80),
+                               "Distance","Scan rate","fig1e.png",0,0)
+    fig1F=ggplot_drawMM_addNLS(-AllSessions$R_mag,AllSessions$widthHV,AllSessions$ID,AllSessions$ExpIndex,
+                               1,c(-4,0),c(25,125),
+                               "Distance","Beamwidth","fig1f.png",0,0)
+    
+    ##Fig.1H
+    v.vector= data.frame(AllSessions$LOSl_F_V.H,AllSessions$LOSl_F_V.V)
+    Polar_line2(NULL,
+                v.vector,
+                NULL,
+                4,60,"Flight Side Angle","Flight Lead Angle","pointON_c","pathOFF","densityOFF","textOFF","backON","fig1h.png",0,"histON",75)
+    
+    
+    fig1H_lead=ggplot_drawMM(AllSessions$forNULL,AllSessions$LOSl_F_V.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                             0,
+                             c(-22,352),
+                             c(-50,100),
+                             "Angular velocity","Flight lead angle","fig1h_lead.png",0,0,0)
+    
+    fig1H_side=ggplot_drawMM(AllSessions$forNULL,AllSessions$LOSl_F_V.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                             0,
+                             c(-22,352),
+                             c(-80,80),
+                             "Angular velocity","Flight side angle","fig1h_side.png",0,0,0)
+  }
+  generate_fig1()
+  
+  setwd("../Fig2")
+  gerenate_fig2<-function(){
+    cdr=getwd()  
+    ##Fig.2B
+    testmodel=model_selection(AllSessions$LOSl_LOSc.LeadAngle,AllSessions$LOSl_P.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,3)[[1]]
+    x_a=AllSessions$TGTshift_a
+    x_i=AllSessions$TGTshift_i
+    predx_a=data.frame('x'=x_a,'ID'=AllSessions$ID,'Ex'=AllSessions$ExpIndex)
+    predx_i=data.frame('x'=x_i,'ID'=AllSessions$ID,'Ex'=AllSessions$ExpIndex)
+    leadangle_a=predict(testmodel, newdata = predx_a, re.form=NA)
+    leadangle_i=predict(testmodel, newdata = predx_i, re.form=NA)
+    
+    SightError1=-(AllSessions$TGTshift_i-0)/(AllSessions$widthHV_init/2)
+    SightError2=-(AllSessions$TGTshift_i-0)/(AllSessions$widthHV/2)
+    SightError3=-(AllSessions$TGTshift_a-0)/(AllSessions$widthHV_init/2)
+    SightError4=-(AllSessions$TGTshift_a-0)/(AllSessions$widthHV/2)
+    SightError5=-(AllSessions$TGTshift_i-leadangle_i)/(AllSessions$widthHV_init/2)
+    SightError6=-(AllSessions$TGTshift_i-leadangle_i)/(AllSessions$widthHV/2)
+    SightError7=-(AllSessions$TGTshift_a-leadangle_a)/(AllSessions$widthHV_init/2)
+    SightError8=-(AllSessions$TGTshift_a-leadangle_a)/(AllSessions$widthHV/2)
+    print(
+    boxplot(SightError1,
+            SightError2,
+            SightError3,
+            SightError4,
+            SightError5,
+            SightError6,
+            SightError7,
+            SightError8)
+    )
+    print(
+    data.frame(
+    mean(na.omit(SightError1)),
+    mean(na.omit(SightError2)),
+    mean(na.omit(SightError3)),
+    mean(na.omit(SightError4)),
+    mean(na.omit(SightError5)),
+    mean(na.omit(SightError6)),
+    mean(na.omit(SightError7)),
+    mean(na.omit(SightError8))
+    )
+    )
+    # AllSessions$av_i=AllSessions$av_a=AllSessions$av_mag
+    sim1=cbind(av=AllSessions$av_i,se=SightError1,id=AllSessions$ID,exp=AllSessions$ExpIndex)
+    sim2=cbind(av=AllSessions$av_i,se=SightError2,id=AllSessions$ID,exp=AllSessions$ExpIndex)
+    sim3=cbind(av=AllSessions$av_a,se=SightError3,id=AllSessions$ID,exp=AllSessions$ExpIndex)
+    sim4=cbind(av=AllSessions$av_a,se=SightError4,id=AllSessions$ID,exp=AllSessions$ExpIndex)
+    sim5=cbind(av=AllSessions$av_i,se=SightError5,id=AllSessions$ID,exp=AllSessions$ExpIndex)
+    sim6=cbind(av=AllSessions$av_i,se=SightError6,id=AllSessions$ID,exp=AllSessions$ExpIndex)
+    sim7=cbind(av=AllSessions$av_a,se=SightError7,id=AllSessions$ID,exp=AllSessions$ExpIndex)
+    sim8=cbind(av=AllSessions$av_a,se=SightError8,id=AllSessions$ID,exp=AllSessions$ExpIndex)
+    
+    # multi=multi_distribution_comp2(list(sim1,sim2,sim3,sim4,sim5,sim6,sim7,sim8),
+    #                                AllSessions$ID,AllSessions$ExpIndex)
+    
+    multi_plot_modeling2(list(sim1,sim2,sim3,sim4,sim5,sim6,sim7,sim8),
+                         AllSessions$ID,AllSessions$ExpIndex,
+                         "fig2b.png",c(0,200),c(-0.7,0.31),"backON") 
+    ratio=1.71/800
+    
+    multi_plot_modeling2(list(sim1,sim2,sim3,sim4,sim5,sim6,sim7,sim8),
+                         AllSessions$ID,AllSessions$ExpIndex,
+                         "fig2b_zoom.png",c(685,685+30),c(0.00-30*ratio,0.00),"backON")
+    
+    
+    setwd(paste0(basedir,"/experiment/E09/graphics/"))
+    file.copy("scene/simscene2Dx_y_dir.png",paste0(cdr,"/fig2d.png"),overwrite = T)
+    setwd(cdr)
+    
+    fig2E=LMM_comparison(AllSessions$TGTdir.pure_p.sn.Wmag,
+                         AllSessions$TGTdir.ori_p.sn.Wmag,
+                         AllSessions$ID,
+                         AllSessions$ExpIndex,
+                         "type of flight pattern",
+                         "Angular Velocity",
+                         "backON",c(0,0),1,"fig2e.png")
+    
+    
+   
+  }
+  gerenate_fig2()
+  
+  setwd("../Fig3")
+  gerenate_fig3<-function(){
+    
+    ###Fig.3
+    fig3B=LMM_comparison(AllSessions$P_L.V,
+                         AllSessions$P_A.V, 
+                         AllSessions$ID,
+                         AllSessions$ExpIndex,
+                         "type of prediction model",
+                         "Deviation Angle",
+                         "backON",c(7,12),1,"fig3b.png")
+    
+    fig3C=ggplot_drawMM(AllSessions$perceived_av_Sound*180/pi,1/AllSessions$interval, AllSessions$ID,AllSessions$ExpIndex,
+                        1,c(0,400),c(0,80),
+                        "Angular Velocity","Scan Rate","fig3c.png",0,0)
+    
+    fig3D=ggplot_drawMM(AllSessions$perceived_av_Sound*180/pi,AllSessions$widthHV, AllSessions$ID,AllSessions$ExpIndex,
+                        1,c(0,400),c(25,120),
+                        "Angular Velocity","Beamwidth","fig3d.png",0,0) ##NLS model was rejected due to occurrence of a conversion error
+    
+    fig3E=ggplot_drawMM(AllSessions$perceived_av_Flight*180/pi,AllSessions$LOSl_F_V.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                        1,
+                        c(-22,352),
+                        c(-50,100),
+                        "Angular velocity","Flight lead angle","fig3e.png",0,0)
+    
+    fig3F=ggplot_drawMM(AllSessions$perceived_av_Flight*180/pi,AllSessions$LOSl_F_V.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                        1,
+                        c(-22,352),
+                        c(-80,80),
+                        "Angular velocity","Flight side angle","fig3f.png",0,0)
+    
+  }
+  gerenate_fig3()
+  
+  
+  
+  Multi_paird_comp(list(AllSessions$LOSc_P.V,
+                        AllSessions$LOSc_L.V,
+                        AllSessions$LOSc_A.V),
+                   AllSessions$ID,
+                   AllSessions$ExpIndex,
+                   "type of prediction",
+                   "accuracy to target",
+                   "backON",c(0,12),1,"figALP.png"
+  )
+  
+  setwd("../FigS2")
+  gerenate_figS2<-function(){
+    
+    FigS2B=ggplot_drawMM_addNLS(AllSessions$R_mag,
+                                AllSessions$av_mag,
+                                AllSessions$ID,AllSessions$ExpIndex,
+                                1,c(-5/16,5),c(0,500),
+                                "Dist","AV","figS2b.png",0,0)
+  }
+  gerenate_figS2()
+  
+  setwd("../FigS3")
+  gerenate_figS3<-function(){
+    
+    FigS3B=ggplot_drawMM(AllSessions$LA.LOS,
+                         AllSessions$LA.vbat.projected,
+                         AllSessions$ID,AllSessions$ExpIndex,
+                         1,
+                         c(-1,16),
+                         c(-50,100),
+                         "LA_los","LA_bat","figS3b.png",2,0)
+  }
+  gerenate_figS3()
+  
+  setwd("../FigS5")
+  gerenate_figS5<-function(){
+    cdr=getwd()  
+    setwd(paste0(basedir,"/experiment/E09/graphics/"))
+    file.copy("scene/scene2Dx_y.png",paste0(cdr,"/figS5a_upper.png"),overwrite = T)
+    file.copy("scene/scene2Dx_z.png",paste0(cdr,"/figS5a_lower.png"),overwrite = T)
+    file.copy("pulse_direction/default_coordinates_full.png",paste0(cdr,"/figS5b.png"),overwrite = T)
+    setwd(cdr)
+  }
+  gerenate_figS5()
+  
+  setwd("../FigS6")
+  gerenate_figS6<-function(){
+    
+    #TableS7
+    #L_fig.1B
+    pulse_sight= data.frame(AllSessions$Tl_P.H,AllSessions$Tl_P.V)
+    tgt_sight=data.frame(AllSessions$Tl_Tc.H,AllSessions$Tl_Tc.V)
+    outlier=which(tgt_sight[,2]>15)#due to range of TGT direction shift in Fig.3
+    
+    Polar_line2(
+      NULL,
+      pulse_sight[-outlier,],
+      NULL,
+      4,30,"Pulse Side Angle","Pulse Lead Angle","pointON_c","pathOFF","densityOFF","textOFF","backON","figS7_fig1b.png",1,"histON",37.5)
+    
+    L_fig1B_lead=ggplot_drawMM(AllSessions$forNULL,AllSessions$Tl_P.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                               0,c(-1,16),c(-37.5,37.5),
+                               "TGT direction shift","Pulse Lead Angle","figS7_fig1b_lead.png",2,0,0)
+    L_fig1B_side=ggplot_drawMM(AllSessions$forNULL,AllSessions$Tl_P.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                               0,c(-1,16),c(-37.5,37.5),
+                               "TGT direction shift","Pulse Side Angle","figS7_fig1b_side.png",1,0,0)
+    L_fig1C=ggplot_drawMM(AllSessions$Tl_Tc.LeadAngle,AllSessions$Tl_P.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                          1,c(-1,16),c(-37.5,37.5),
+                          "TGT direction shift","Pulse Lead Angle","figS7_fig1c.png",2,0)
+    L_fig1C_simtest=ggplot_drawMM(AllSessions$Tl_Tc.LeadAngle,AllSessions$Tl_P.LeadAngle-AllSessions$Tl_Tc.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                                  1,c(-1,16),c(-37.5,37.5),
+                                  "TGT direction shift","diff Lead-TGT shift","figS7_fig1c_simtest.png",1,0)
+    
+    
+    L_fig1D=ggplot_drawMM(AllSessions$Tl_Tc.LeadAngle,AllSessions$Tl_P.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                          1,c(-1,16),c(-37.5,37.5),
+                          "TGT direction shift","Pulse Side Angle","figS7_fig1d.png",1,0)
+    
+    L_fig1D_simtest=ggplot_drawMM(AllSessions$Tl_Tc.LeadAngle,AllSessions$Tl_P.SideAngle-AllSessions$Tl_Tc.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                                  1,c(-1,16),c(-37.5,37.5),
+                                  "TGT direction shift","diff Side-zero","figS7_fig1d_simtest.png",1,0)
+    
+    ##L_fig1F
+    v.vector= data.frame(AllSessions$Tl_F_V.H,AllSessions$Tl_F_V.V)
+    Polar_line2(NULL,
+                v.vector,
+                NULL,
+                4,60,"Flight Side Angle","Flight Lead Angle","pointON_c","pathOFF","densityOFF","textOFF","backON","figS7_fig1h.png",0,"histON",75)
+    
+    L_fig1H_lead=ggplot_drawMM(AllSessions$Tl_Tc.LeadAngle,AllSessions$Tl_F_V.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                               0,c(-1,16),c(-37.5,37.5),
+                               "TGT direction shift","Pulse Lead Angle","figS7_fig1h_lead.png",2,0,0)
+    L_fig1H_side=ggplot_drawMM(AllSessions$Tl_Tc.LeadAngle,AllSessions$Tl_F_V.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                               0,c(-1,16),c(-37.5,37.5),
+                               "TGT direction shift","Pulse Side Angle","figS7_fig1h_side.png",1,0,0)
+    
+    #L_fig2
+    x_a=AllSessions$TGTshiftloc_a
+    x_i=AllSessions$TGTshiftloc_i
+    testmodel=model_selection(AllSessions$Tl_Tc.LeadAngle,AllSessions$Tl_P.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,1)[[1]]
+    
+    predx_a=data.frame('x'=x_a,'ID'=AllSessions$ID,'Ex'=AllSessions$ExpIndex)
+    predx_i=data.frame('x'=x_i,'ID'=AllSessions$ID,'Ex'=AllSessions$ExpIndex)
+    leadangle_a=predict(testmodel, newdata = predx_a, re.form=NA)
+    leadangle_i=predict(testmodel, newdata = predx_i, re.form=NA)
+    
+    L_fig2B=multi_plot_modeling_comp(AllSessions$av_mag,
+                                     list(-(AllSessions$TGTshiftloc_i-0)/(AllSessions$widthHV_init/2),
+                                          -(AllSessions$TGTshiftloc_i-0)/(AllSessions$widthHV/2),
+                                          -(AllSessions$TGTshiftloc_a-0)/(AllSessions$widthHV_init/2),
+                                          -(AllSessions$TGTshiftloc_a-0)/(AllSessions$widthHV/2),
+                                          -(AllSessions$TGTshiftloc_i-leadangle_i)/(AllSessions$widthHV_init/2),
+                                          -(AllSessions$TGTshiftloc_i-leadangle_i)/(AllSessions$widthHV/2),
+                                          -(AllSessions$TGTshiftloc_a-leadangle_a)/(AllSessions$widthHV_init/2),
+                                          -(AllSessions$TGTshiftloc_a-leadangle_a)/(AllSessions$widthHV/2)),
+                                     AllSessions$ID,AllSessions$ExpIndex,
+                                     "figS7_fig2b.png",c(0,800),c(-1,0.5))
+    
+    #L_fig2D
+    cdr=getwd()
+    setwd(paste0(basedir,"/experiment/E09/graphics/"))
+    file.copy("scene/simscene2Dx_y_loc.png",paste0(cdr,"/figS7_fig2d.png"),overwrite = T)
+    setwd(cdr)
+    
+    L_fig2E=LMM_comparison(AllSessions$TGTloc.pure_p.sn.Wmag,AllSessions$TGTloc.ori_p.sn.Wmag,AllSessions$ID,AllSessions$ExpIndex,
+                           "type of flight pattern",
+                           "Angular Velocity",
+                           "backON",c(0,0),1,"figS7_fig2e.png")
+    
+    #L_fig3
+    L_fig3E=ggplot_drawMM(AllSessions$perceived_av_Flight*180/pi,AllSessions$Tl_F_V.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,
+                          1,
+                          c(-22,352),
+                          c(-50,100),
+                          "Angular velocity","Flight lead angle","figS7_fig3e_lead.png",0,0)
+    
+    
+    L_fig3F=ggplot_drawMM(AllSessions$perceived_av_Flight*180/pi,AllSessions$Tl_F_V.SideAngle,AllSessions$ID,AllSessions$ExpIndex,
+                          1,
+                          c(-22,352),
+                          c(-80,80),
+                          "Angular velocity","Flight side angle","figS7_fig3e_side.png",0,0)
+    
+    
+  }
+  gerenate_figS6()
+  setwd("../")
+  
+}
+
+
+
+
+if(!generate_results_delay){
+  setwd(initialdir)
+  invokeRestart("abort")
+}
+
+
+delay_result=data.frame()
+
+for(k in 1:71){
+  feedbackdelay_Flight=0.070+(k-1)*0.001
+  feedbackdelay_Sound=0.000+(k-1)*0.001
+  
+  AllSessions=data.frame()
+  AllFlight=data.frame()
+  AllFlight_dir=data.frame()
+  ExpIndex=0
+  
+  for (file.name in files) {
+    
+    head3=substr(file.name, 1, 3)
+    head1=substr(head3, 1, 1)
+    if (regexpr("E", head1)  < 0) {next}
+    subdir=paste0(expdir,"/",file.name)
+    setwd(subdir)
+    
+    position=read.csv(paste0(head3,"_position.csv"), header=T)
+    pulse=read.csv(paste0(head3,"_pulse.csv"), header=T)
+    
+    
+    format=initialformatting(position,pulse)
+    position=format[[1]]
+    pulse=format[[2]]
+    
+    #########making motion functions
+    motionFunc=list()
+    for(funcindex in 1:6){
+      func_each <- smooth.spline(position$time, position[,funcindex+1])
+      motionFunc=c(motionFunc,list(func_each))
+    }
+    pulse=addKinematicData(pulse,motionFunc)
+    pulse=cbind(pulse,forNULL=c(1:nrow(pulse)))
+    ####omit low precision data due to short distance
+    select=which(pulse$R_mag>dist_threshold)
+    if(length(select)==0){next}
+    
+    ### fragmentation of data to make non-continuous sections clear 
+    pulse_frag=fragmentation(pulse[select,])
+    
+    res=data.frame()
+    for(j in 1:length(pulse_frag)){
+      pulse_frag[[j]]=getLastDetectedTimestep(pulse_frag[[j]],feedbackdelay_Sound)
+    }
+    
+    ## adding parameters in each fragment to pulse_frag then storing to EachSession 
+    EachSight=SightAnalysis(pulse_frag)
+    EachFlight=FlightAnalysis(pulse_frag)
+    
+    EachSession=cbind(EachSight,EachFlight)
+    
+    
+    
+    ## adding index
+    ID=as.numeric(Exp_Bat[Exp_Bat$Exp.ID==head3,]$Bat.ID)
+    ExpIndex=ExpIndex+1
+    EachSession=cbind(ID,ExpID=head3,ExpIndex,EachSession)
+    
+    ## storing each session data (EachSession) to AllSessions
+    AllSessions=rbind(AllSessions,EachSession)
+  }
+  
+  f1B_lead=model_selection(AllSessions$forNULL,AllSessions$LOSl_P.LeadAngle,
+                           AllSessions$ID,AllSessions$ExpIndex,
+                           0)
+  f1B_lead_v=fixed.effects(f1B_lead[[1]])[1]
+  f1B_lead_p=f1B_lead[[2]][1,1]
+  
+  
+  
+  f1C=model_selection(AllSessions$LOSl_LOSc.LeadAngle,AllSessions$LOSl_P.LeadAngle,
+                      AllSessions$ID,AllSessions$ExpIndex,
+                      1)
+  f1C_v=fixed.effects(f1C[[1]])[2]
+  f1C_p=f1C[[2]][1,2]
+  
+  
+  
+  f1I_lead=model_selection(AllSessions$forNULL,AllSessions$LOSl_F_V.LeadAngle,
+                           AllSessions$ID,AllSessions$ExpIndex,
+                           0)
+  f1I_lead_v=fixed.effects(f1I_lead[[1]])[1]
+  f1I_lead_p=f1I_lead[[2]][1,1]
+  
+  
+  
+  testmodel=model_selection(AllSessions$LOSl_LOSc.LeadAngle,AllSessions$LOSl_P.LeadAngle,AllSessions$ID,AllSessions$ExpIndex,1)[[1]]
+  x_a=AllSessions$TGTshift_a
+  x_i=AllSessions$TGTshift_i
+  predx_a=data.frame('x'=x_a,'ID'=AllSessions$ID,'Ex'=AllSessions$ExpIndex)
+  predx_i=data.frame('x'=x_i,'ID'=AllSessions$ID,'Ex'=AllSessions$ExpIndex)
+  leadangle_a=predict(testmodel, newdata = predx_a, re.form=NA)
+  leadangle_i=predict(testmodel, newdata = predx_i, re.form=NA)
+  
+  SightError1=-(AllSessions$TGTshift_i-0)/(AllSessions$widthHV_init/2)
+  SightError2=-(AllSessions$TGTshift_i-0)/(AllSessions$widthHV/2)
+  SightError3=-(AllSessions$TGTshift_a-0)/(AllSessions$widthHV_init/2)
+  SightError4=-(AllSessions$TGTshift_a-0)/(AllSessions$widthHV/2)
+  SightError5=-(AllSessions$TGTshift_i-leadangle_i)/(AllSessions$widthHV_init/2)
+  SightError6=-(AllSessions$TGTshift_i-leadangle_i)/(AllSessions$widthHV/2)
+  SightError7=-(AllSessions$TGTshift_a-leadangle_a)/(AllSessions$widthHV_init/2)
+  SightError8=-(AllSessions$TGTshift_a-leadangle_a)/(AllSessions$widthHV/2)
+  
+  
+  
+  
+  
+  
+  
+  
+  f2D=LMM_comparison(AllSessions$TGTdir.pure_p.sn.Wmag,
+                     AllSessions$TGTdir.ori_p.sn.Wmag,
+                     AllSessions$ID,AllSessions$ExpIndex,
+                     "","","BackON",c(0,0),0)
+  f2D_v=f2D[[1]]
+  f2D_p=f2D[[2]]
+  
+  f3C=model_selection(AllSessions$perceived_av_Sound*180/pi,1/AllSessions$interval,
+                      AllSessions$ID,AllSessions$ExpIndex,
+                      1)
+  f3C_v=fixed.effects(f3C[[1]])[2]
+  f3C_p=f3C[[2]][1,2]
+  
+  f3D=model_selection(AllSessions$perceived_av_Sound*180/pi,AllSessions$widthHV,
+                      AllSessions$ID,AllSessions$ExpIndex,
+                      1)
+  f3D_v=fixed.effects(f3D[[1]])[2]
+  f3D_p=f3D[[2]][1,2]
+  
+  f3E=model_selection(AllSessions$perceived_av_Flight*180/pi,AllSessions$LOSl_F_V.LeadAngle,
+                      AllSessions$ID,AllSessions$ExpIndex,
+                      1)
+  f3E_v=fixed.effects(f3E[[1]])[2]
+  f3E_p=f3E[[2]][1,2]
+  
+  fs3B=model_selection(AllSessions$LA.LOS,
+                       AllSessions$LA.vbat.projected,
+                       AllSessions$ID,AllSessions$ExpIndex,
+                       1)
+  fs3B_v=fixed.effects(fs3B[[1]])[2]
+  fs3B_p=fs3B[[2]][1,2]
+  
+  delay_result=rbind(delay_result,(cbind(feedbackdelay_Flight,
+                                         feedbackdelay_Flight,
+                                         f1B_lead_v,
+                                         f1B_lead_p,
+                                         f1C_v,
+                                         f1C_p,
+                                         f1I_lead_v,
+                                         f1I_lead_p,
+                                         se1=mean(na.omit(SightError1)),
+                                         se2=mean(na.omit(SightError2)),
+                                         se3=mean(na.omit(SightError3)),
+                                         se4=mean(na.omit(SightError4)),
+                                         se5=mean(na.omit(SightError5)),
+                                         se6=mean(na.omit(SightError6)),
+                                         se7=mean(na.omit(SightError7)),
+                                         se8=mean(na.omit(SightError8)),
+                                         f2D_v,
+                                         f2D_p,
+                                         f3C_v,
+                                         f3C_p,
+                                         f3D_v,
+                                         f3D_p,
+                                         f3E_v,
+                                         f3E_p,
+                                         fs3B_v,
+                                         fs3B_p)
+                                   ))
+  
+  print(paste("LOOP:",k))
+}
+
+
+save(delay_result,file="delay_result0_70.Rdata")
+LOOPresult()
+setwd(initialdir)
+
